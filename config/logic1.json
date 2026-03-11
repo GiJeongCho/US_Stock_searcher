@@ -1,0 +1,142 @@
+{
+  "name": "급등이",
+  "description": "다중 이평 정배열 + 볼린저/엔벨로프 상향돌파",
+  "conditions": [
+    {
+      "id": "ma_align_5m_1",
+      "type": "ma_alignment",
+      "label": "5분 이평배열 (MA5 >= MA20 >= MA60)",
+      "interval": "5m",
+      "periods": [5, 20, 60],
+      "enabled": true
+    },
+    {
+      "id": "ma_align_5m_2",
+      "type": "ma_alignment",
+      "label": "5분 이평배열 (MA5 >= MA20 >= MA200)",
+      "interval": "5m",
+      "periods": [5, 20, 200],
+      "enabled": true
+    },
+    {
+      "id": "ma_align_5m_3",
+      "type": "ma_alignment",
+      "label": "5분 이평배열 (MA5 >= MA100 >= MA150)",
+      "interval": "5m",
+      "periods": [5, 100, 150],
+      "enabled": true
+    },
+    {
+      "id": "bb_breakout_5m",
+      "type": "bb_breakout",
+      "label": "5분 볼린저밴드 상향돌파",
+      "interval": "5m",
+      "period": 20,
+      "std": 2.0,
+      "enabled": true
+    },
+    {
+      "id": "bb_above_5m",
+      "type": "bb_above",
+      "label": "5분 볼린저밴드 상한선 이상",
+      "interval": "5m",
+      "period": 20,
+      "std": 2.0,
+      "enabled": true
+    },
+    {
+      "id": "volume_daily",
+      "type": "volume_range",
+      "label": "일 거래량 필터",
+      "interval": "1d",
+      "min": 300000,
+      "max": 999999999,
+      "enabled": true
+    },
+    {
+      "id": "ma_gap_5m_200",
+      "type": "ma_gap",
+      "label": "5분 이평이격도 MA5-MA200 10% 이내",
+      "interval": "5m",
+      "fast": 5,
+      "slow": 200,
+      "threshold_pct": 10.0,
+      "enabled": true
+    },
+    {
+      "id": "ma_gap_5m_20",
+      "type": "ma_gap",
+      "label": "5분 이평이격도 MA5-MA20 5% 이내",
+      "interval": "5m",
+      "fast": 5,
+      "slow": 20,
+      "threshold_pct": 5.0,
+      "enabled": true
+    },
+    {
+      "id": "market_cap",
+      "type": "market_cap_min",
+      "label": "시가총액 최소 (USD)",
+      "min_usd": 30000000,
+      "enabled": true
+    },
+    {
+      "id": "ma_compare_5m",
+      "type": "ma_compare",
+      "label": "5분 MA5 >= MA224",
+      "interval": "5m",
+      "fast": 5,
+      "slow": 224,
+      "enabled": true
+    },
+    {
+      "id": "envelope_breakout_5m_1",
+      "type": "envelope_breakout",
+      "label": "5분 엔벨로프 상향돌파 (12, 2.2%)",
+      "interval": "5m",
+      "period": 12,
+      "pct": 2.2,
+      "enabled": true
+    },
+    {
+      "id": "envelope_breakout_5m_2",
+      "type": "envelope_breakout",
+      "label": "5분 엔벨로프 상향돌파 (20, 3.3%)",
+      "interval": "5m",
+      "period": 20,
+      "pct": 3.3,
+      "enabled": true
+    },
+    {
+      "id": "float_ratio",
+      "type": "float_ratio_min",
+      "label": "유통비율 최소 (%)",
+      "min_pct": 20.0,
+      "enabled": false
+    },
+    {
+      "id": "ma_align_60m_1",
+      "type": "ma_alignment",
+      "label": "60분 이평배열 (MA5 >= MA20 >= MA60)",
+      "interval": "60m",
+      "periods": [5, 20, 60],
+      "enabled": true
+    },
+    {
+      "id": "ma_align_60m_2",
+      "type": "ma_alignment",
+      "label": "60분 이평배열 (MA20 >= MA60 >= MA112)",
+      "interval": "60m",
+      "periods": [20, 60, 112],
+      "enabled": true
+    },
+    {
+      "id": "ma_align_60m_3",
+      "type": "ma_alignment",
+      "label": "60분 이평배열 (MA20 >= MA112 >= MA250)",
+      "interval": "60m",
+      "periods": [20, 112, 250],
+      "enabled": true
+    }
+  ]
+}

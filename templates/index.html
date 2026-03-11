@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>US Stock Screener</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Segoe UI', sans-serif; background: #0f1117; color: #e2e8f0; min-height: 100vh; }
+
+header {
+  background: #1a1d27; border-bottom: 1px solid #2d3148;
+  padding: 12px 20px; display: flex; align-items: center; gap: 14px;
+}
+header h1 { font-size: 1rem; font-weight: 700; color: #7dd3fc; }
+.header-right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+.universe-info { font-size: 0.72rem; color: #6b7280; }
+.universe-info b { color: #a78bfa; }
+
+.layout { display: grid; grid-template-columns: 320px 1fr; height: calc(100vh - 49px); }
+
+/* ─── 왼쪽 패널 ─── */
+.left { background: #13161f; border-right: 1px solid #2d3148; display: flex; flex-direction: column; overflow: hidden; }
+
+.tab-bar { display: flex; border-bottom: 1px solid #2d3148; }
+.tab { flex: 1; padding: 10px 0; text-align: center; cursor: pointer; font-size: 0.78rem; color: #6b7280; border-bottom: 2px solid transparent; transition: .15s; }
+.tab.active { color: #7dd3fc; border-bottom-color: #7dd3fc; background: #1a1d27; }
+
+.section { padding: 12px 14px; border-bottom: 1px solid #1e2130; }
+.section-label { font-size: 0.67rem; text-transform: uppercase; letter-spacing: .8px; color: #4b5563; margin-bottom: 8px; }
+
+/* 스캔 모드 토글 */
+.mode-toggle { display: flex; gap: 0; background: #1e2130; border-radius: 6px; overflow: hidden; margin-bottom: 10px; }
+.mode-btn { flex: 1; padding: 7px 0; text-align: center; font-size: 0.75rem; cursor: pointer; color: #6b7280; border: none; background: none; transition: .15s; }
+.mode-btn.active { background: #1d4ed8; color: #fff; font-weight: 600; }
+
+.scan-row { display: flex; gap: 6px; align-items: center; }
+.logic-select { flex: 1; background: #1e2130; border: 1px solid #374151; border-radius: 6px; padding: 7px 8px; color: #e2e8f0; font-size: 0.78rem; outline: none; }
+.btn { padding: 7px 14px; border-radius: 6px; border: none; cursor: pointer; font-size: 0.78rem; font-weight: 600; transition: .15s; white-space: nowrap; }
+.btn-green  { background: #166534; color: #86efac; }
+.btn-green:hover  { background: #15803d; }
+.btn-red    { background: #7f1d1d; color: #fca5a5; }
+.btn-red:hover    { background: #991b1b; }
+.btn-blue   { background: #1d4ed8; color: #fff; }
+.btn-blue:hover   { background: #2563eb; }
+.btn-gray   { background: #374151; color: #d1d5db; }
+.btn-gray:hover   { background: #4b5563; }
+.btn-sm { padding: 4px 9px; font-size: 0.7rem; }
+
+/* 즐겨찾기 */
+.ticker-input-row { display: flex; gap: 6px; }
+.ticker-input-row input { flex: 1; background: #1e2130; border: 1px solid #374151; border-radius: 6px; padding: 7px 9px; color: #e2e8f0; font-size: 0.82rem; outline: none; }
+.ticker-input-row input:focus { border-color: #7dd3fc; }
+.ticker-list { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; min-height: 24px; }
+.ticker-tag { display: flex; align-items: center; gap: 4px; background: #1e2130; border: 1px solid #2d3148; border-radius: 4px; padding: 3px 8px; font-size: 0.75rem; }
+.ticker-tag span { color: #7dd3fc; font-weight: 700; }
+.ticker-tag button { background: none; border: none; color: #4b5563; cursor: pointer; font-size: 1rem; line-height: 1; }
+.ticker-tag button:hover { color: #f87171; }
+
+/* 로직 에디터 */
+.logic-editor { flex: 1; overflow-y: auto; }
+.logic-head { padding: 10px 14px; background: #1a1d27; border-bottom: 1px solid #2d3148; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 1; }
+.logic-name-badge { font-size: 0.8rem; font-weight: 700; color: #a78bfa; }
+.logic-desc { font-size: 0.68rem; color: #6b7280; }
+.save-btn { background: #1d4ed8; color: #fff; border: none; border-radius: 4px; padding: 5px 12px; font-size: 0.72rem; cursor: pointer; }
+.save-btn:hover { background: #2563eb; }
+
+.cond-item { padding: 9px 14px; border-bottom: 1px solid #1a1c25; display: flex; align-items: flex-start; gap: 8px; }
+.cond-item:hover { background: #171a24; }
+.cond-item.disabled { opacity: .4; }
+.cond-toggle { margin-top: 2px; cursor: pointer; accent-color: #7dd3fc; flex-shrink: 0; }
+.cond-body { flex: 1; }
+.cond-label { font-size: 0.75rem; color: #cbd5e1; margin-bottom: 5px; }
+.cond-params { display: flex; flex-wrap: wrap; gap: 4px; }
+.param-group { display: flex; align-items: center; gap: 3px; background: #1e2130; border: 1px solid #2a2d3e; border-radius: 4px; padding: 3px 7px; }
+.param-group label { font-size: 0.65rem; color: #6b7280; }
+.param-group input[type=number] { width: 64px; background: none; border: none; color: #fbbf24; font-size: 0.76rem; text-align: center; outline: none; }
+
+/* ─── 오른쪽 패널 ─── */
+.right { display: flex; flex-direction: column; overflow: hidden; }
+
+/* 진행 상태 바 */
+.scan-status { background: #13161f; border-bottom: 1px solid #2d3148; padding: 10px 20px; }
+.status-row { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+.status-label { font-size: 0.78rem; font-weight: 600; }
+.status-msg { font-size: 0.73rem; color: #9ca3af; flex: 1; }
+.match-badge { background: #14532d; color: #86efac; font-size: 0.72rem; padding: 2px 9px; border-radius: 12px; font-weight: 700; }
+.progress-bar-wrap { background: #1e2130; border-radius: 4px; height: 5px; overflow: hidden; }
+.progress-bar { height: 100%; background: linear-gradient(90deg, #1d4ed8, #7dd3fc); border-radius: 4px; width: 0; transition: width .3s; }
+.phase-labels { display: flex; gap: 14px; margin-top: 5px; }
+.phase-item { font-size: 0.67rem; color: #4b5563; display: flex; align-items: center; gap: 4px; }
+.phase-dot { width: 6px; height: 6px; border-radius: 50%; background: #374151; }
+.phase-dot.active { background: #22c55e; box-shadow: 0 0 5px #22c55e; }
+.phase-dot.done { background: #3b82f6; }
+
+/* 결과 그리드 */
+.results-header { padding: 10px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #1e2130; }
+.results-title { font-size: 0.8rem; font-weight: 600; }
+.results-meta { font-size: 0.7rem; color: #6b7280; }
+
+.results-body { flex: 1; overflow-y: auto; padding: 14px; display: flex; flex-wrap: wrap; gap: 10px; align-content: flex-start; }
+
+.result-card { background: #13161f; border: 1px solid #2d3148; border-radius: 8px; width: 260px; overflow: hidden; transition: border-color .2s; }
+.result-card.pass { border-color: #166534; }
+.result-card.partial { border-color: #713f12; }
+.card-head { padding: 9px 12px; background: #1a1d27; display: flex; justify-content: space-between; align-items: center; }
+.card-ticker { font-size: 1rem; font-weight: 800; }
+.card-badge { font-size: 0.68rem; padding: 2px 8px; border-radius: 20px; font-weight: 700; }
+.badge-pass    { background: #14532d; color: #86efac; }
+.badge-partial { background: #422006; color: #fde68a; }
+.badge-fail    { background: #2d1515; color: #fca5a5; }
+.card-score { font-size: 0.7rem; color: #6b7280; padding: 4px 12px; background: #111318; }
+.card-conds { padding: 6px 0; }
+.cond-row { display: flex; align-items: center; gap: 6px; padding: 3px 12px; font-size: 0.7rem; }
+.cond-row:hover { background: #1a1d27; }
+.ci { width: 13px; height: 13px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: .58rem; }
+.ci-pass   { background: #14532d; color: #86efac; }
+.ci-fail   { background: #450a0a; color: #fca5a5; }
+.ci-skip   { background: #1e2130; color: #6b7280; }
+.ct { color: #9ca3af; }
+
+.empty-state { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #374151; gap: 10px; }
+.empty-state p { font-size: 0.82rem; }
+
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-thumb { background: #374151; border-radius: 10px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🇺🇸 US Stock Screener</h1>
+  <div class="header-right">
+    <span class="universe-info" id="universeInfo">종목 DB: 로딩 중...</span>
+    <button class="btn btn-gray btn-sm" onclick="refreshUniverse()">갱신</button>
+  </div>
+</header>
+
+<div class="layout">
+
+  <!-- 왼쪽 패널 -->
+  <div class="left">
+    <div class="tab-bar">
+      <div class="tab active" id="tab-logic1" onclick="switchTab('logic1')">급등이</div>
+      <div class="tab" id="tab-logic2" onclick="switchTab('logic2')">벌떡이</div>
+    </div>
+
+    <!-- 스캔 모드 + 실행 -->
+    <div class="section">
+      <div class="section-label">스캔 모드</div>
+      <div class="mode-toggle">
+        <button class="mode-btn active" id="mode-universe" onclick="setMode('universe')">전체 미장</button>
+        <button class="mode-btn" id="mode-watchlist" onclick="setMode('watchlist')">즐겨찾기</button>
+      </div>
+      <div class="scan-row">
+        <select class="logic-select" id="logicSelect">
+          <option value="logic1">급등이</option>
+          <option value="logic2">벌떡이</option>
+        </select>
+        <button class="btn btn-green" id="scanBtn" onclick="toggleScan()">▶ 스캔</button>
+      </div>
+    </div>
+
+    <!-- 즐겨찾기 (watchlist 모드일 때만 표시) -->
+    <div class="section" id="watchlistSection" style="display:none">
+      <div class="section-label">즐겨찾기 종목</div>
+      <div class="ticker-input-row">
+        <input type="text" id="tickerInput" placeholder="AAPL, NVDA ..."
+               onkeydown="if(event.key==='Enter') addTicker()">
+        <button class="btn btn-blue btn-sm" onclick="addTicker()">추가</button>
+      </div>
+      <div class="ticker-list" id="tickerList"></div>
+    </div>
+
+    <!-- 로직 조건 에디터 -->
+    <div class="logic-editor" id="logicEditor">
+      <div style="padding:30px;text-align:center;color:#4b5563;font-size:.8rem">로딩 중...</div>
+    </div>
+  </div>
+
+  <!-- 오른쪽 패널 -->
+  <div class="right">
+
+    <!-- 진행 상태 -->
+    <div class="scan-status" id="scanStatus">
+      <div class="status-row">
+        <span class="status-label" id="statusLabel">대기 중</span>
+        <span class="status-msg" id="statusMsg">스캔을 실행하면 결과가 여기에 표시됩니다</span>
+        <span class="match-badge" id="matchBadge" style="display:none">0개 발견</span>
+      </div>
+      <div class="progress-bar-wrap">
+        <div class="progress-bar" id="progressBar"></div>
+      </div>
+      <div class="phase-labels">
+        <div class="phase-item"><div class="phase-dot" id="phase1dot"></div> 거래량 필터</div>
+        <div class="phase-item"><div class="phase-dot" id="phase2dot"></div> 데이터 로드</div>
+        <div class="phase-item"><div class="phase-dot" id="phase3dot"></div> 조건 평가</div>
+      </div>
+    </div>
+
+    <!-- 결과 헤더 -->
+    <div class="results-header">
+      <span class="results-title">스캔 결과</span>
+      <span class="results-meta" id="resultsMeta">-</span>
+    </div>
+
+    <!-- 결과 카드들 -->
+    <div class="results-body" id="resultsBody">
+      <div class="empty-state" id="emptyState">
+        <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3">
+          <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+        </svg>
+        <p>전체 미장 또는 즐겨찾기 종목을 스캔하세요</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+let currentLogicId = 'logic1';
+let scanMode = 'universe';
+let logicData = {};
+let watchlist = [];
+let currentScanId = null;
+let currentEvtSource = null;
+let matchCount = 0;
+let scanRunning = false;
+
+// ── 초기화 ──────────────────────────────────────────────────
+async function init() {
+  await Promise.all([loadLogic('logic1'), loadLogic('logic2'), loadWatchlist()]);
+  renderLogicEditor();
+  loadUniverseInfo();
+}
+
+async function loadUniverseInfo() {
+  const res = await fetch('/api/universe/info');
+  const data = await res.json();
+  const el = document.getElementById('universeInfo');
+  if (data.cached) {
+    el.innerHTML = `종목 DB: <b>${data.count.toLocaleString()}개</b> (${data.age_hours}h 전 갱신${data.stale ? ' ⚠️' : ''})`;
+  } else {
+    el.innerHTML = '종목 DB: <b>미캐시</b> (첫 스캔 시 자동 다운로드)';
+  }
+}
+
+async function refreshUniverse() {
+  document.getElementById('universeInfo').textContent = '갱신 중...';
+  await fetch('/api/universe/refresh', {method: 'POST'});
+  await loadUniverseInfo();
+}
+
+// ── 와치리스트 ───────────────────────────────────────────────
+async function loadWatchlist() {
+  const res = await fetch('/api/watchlist');
+  watchlist = await res.json();
+  renderWatchlist();
+}
+
+function renderWatchlist() {
+  document.getElementById('tickerList').innerHTML = watchlist.map(t => `
+    <div class="ticker-tag">
+      <span>${t}</span>
+      <button onclick="removeTicker('${t}')">×</button>
+    </div>`).join('');
+}
+
+async function addTicker() {
+  const input = document.getElementById('tickerInput');
+  const tickers = input.value.toUpperCase().split(/[\s,]+/).filter(Boolean);
+  for (const t of tickers) {
+    await fetch('/api/watchlist', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ticker: t})
+    });
+  }
+  input.value = '';
+  await loadWatchlist();
+}
+
+async function removeTicker(t) {
+  await fetch(`/api/watchlist/${t}`, {method: 'DELETE'});
+  await loadWatchlist();
+}
+
+// ── 모드/탭 ─────────────────────────────────────────────────
+function setMode(mode) {
+  scanMode = mode;
+  ['universe','watchlist'].forEach(m => {
+    document.getElementById(`mode-${m}`).classList.toggle('active', m === mode);
+  });
+  document.getElementById('watchlistSection').style.display = mode === 'watchlist' ? '' : 'none';
+}
+
+function switchTab(id) {
+  currentLogicId = id;
+  ['logic1','logic2'].forEach(l => {
+    document.getElementById(`tab-${l}`).classList.toggle('active', l === id);
+  });
+  document.getElementById('logicSelect').value = id;
+  renderLogicEditor();
+}
+
+// ── 로직 로드/저장 ────────────────────────────────────────────
+async function loadLogic(id) {
+  const res = await fetch(`/api/logic/${id}`);
+  logicData[id] = await res.json();
+}
+
+async function saveLogic() {
+  await fetch(`/api/logic/${currentLogicId}`, {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify(logicData[currentLogicId])
+  });
+  showToast('저장 완료');
+}
+
+// ── 로직 에디터 렌더링 ────────────────────────────────────────
+function renderLogicEditor() {
+  const logic = logicData[currentLogicId];
+  if (!logic) return;
+  document.getElementById('logicEditor').innerHTML = `
+    <div class="logic-head">
+      <div>
+        <div class="logic-name-badge">${logic.name}</div>
+        <div class="logic-desc">${logic.description}</div>
+      </div>
+      <button class="save-btn" onclick="saveLogic()">저장</button>
+    </div>
+    ${logic.conditions.map((c, i) => renderCond(c, i)).join('')}
+  `;
+}
+
+function renderCond(cond, idx) {
+  const params = getParams(cond);
+  return `
+    <div class="cond-item ${!cond.enabled ? 'disabled' : ''}">
+      <input type="checkbox" class="cond-toggle" ${cond.enabled ? 'checked' : ''}
+             onchange="toggleCond('${cond.id}', this.checked)">
+      <div class="cond-body">
+        <div class="cond-label">${cond.label}</div>
+        <div class="cond-params">
+          ${params.map(p => `
+            <div class="param-group">
+              <label>${p.label}</label>
+              <input type="number" value="${p.value}" step="${p.step||1}" min="${p.min||0}"
+                     onchange="updateParam('${cond.id}','${p.key}',this.value,${!!p.isArray},${p.arrayIdx??'undefined'})">
+            </div>`).join('')}
+        </div>
+      </div>
+    </div>`;
+}
+
+function getParams(c) {
+  const t = c.type, p = [];
+  if (t === 'ma_alignment')
+    c.periods.forEach((v,i) => p.push({label:`MA${i+1}`, key:'periods', value:v, isArray:true, arrayIdx:i}));
+  else if (t === 'bb_breakout' || t === 'bb_above')
+    p.push({label:'기간',key:'period',value:c.period},{label:'표준편차',key:'std',value:c.std,step:.1,min:.1});
+  else if (t === 'envelope_breakout')
+    p.push({label:'기간',key:'period',value:c.period},{label:'%',key:'pct',value:c.pct,step:.1,min:.1});
+  else if (t === 'ma_gap')
+    p.push({label:'빠른MA',key:'fast',value:c.fast},{label:'느린MA',key:'slow',value:c.slow},{label:'허용%',key:'threshold_pct',value:c.threshold_pct,step:.5,min:.1});
+  else if (t === 'ma_compare')
+    p.push({label:'빠른MA',key:'fast',value:c.fast},{label:'느린MA',key:'slow',value:c.slow});
+  else if (t === 'volume_range')
+    p.push({label:'최소',key:'min',value:c.min,step:10000},{label:'최대',key:'max',value:c.max,step:1000000});
+  else if (t === 'market_cap_min')
+    p.push({label:'최소USD',key:'min_usd',value:c.min_usd,step:1000000});
+  else if (t === 'float_ratio_min')
+    p.push({label:'최소%',key:'min_pct',value:c.min_pct,step:1,min:1});
+  return p;
+}
+
+function toggleCond(id, enabled) {
+  const c = logicData[currentLogicId].conditions.find(x => x.id === id);
+  if (c) { c.enabled = enabled; renderLogicEditor(); }
+}
+
+function updateParam(condId, key, val, isArray, arrIdx) {
+  const c = logicData[currentLogicId].conditions.find(x => x.id === condId);
+  if (!c) return;
+  const num = parseFloat(val);
+  if (isArray) c[key][arrIdx] = Number.isInteger(c[key][arrIdx]) ? Math.round(num) : num;
+  else c[key] = Number.isInteger(c[key]) ? Math.round(num) : num;
+}
+
+// ── 스캔 ────────────────────────────────────────────────────
+async function toggleScan() {
+  if (scanRunning) {
+    stopScan();
+  } else {
+    startScan();
+  }
+}
+
+async function startScan() {
+  const logicId = document.getElementById('logicSelect').value;
+
+  // 결과 초기화
+  matchCount = 0;
+  document.getElementById('resultsBody').innerHTML = '';
+  document.getElementById('emptyState') && document.getElementById('resultsBody').insertAdjacentHTML('beforeend',
+    '<div class="empty-state" id="emptyState"><p>스캔 중...</p></div>');
+  setPhase(0);
+  setProgress(0);
+  document.getElementById('matchBadge').style.display = '';
+  document.getElementById('matchBadge').textContent = '0개 발견';
+
+  // 스캔 시작 요청
+  const res = await fetch('/api/scan/start', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({logic_id: logicId, mode: scanMode})
+  });
+  const {scan_id} = await res.json();
+  currentScanId = scan_id;
+
+  // SSE 연결
+  currentEvtSource = new EventSource(`/api/scan/stream/${scan_id}`);
+  currentEvtSource.onmessage = (e) => handleMsg(JSON.parse(e.data));
+  currentEvtSource.onerror = () => { setScanRunning(false); };
+
+  setScanRunning(true);
+}
+
+function stopScan() {
+  if (currentScanId) {
+    fetch(`/api/scan/stop/${currentScanId}`, {method: 'POST'});
+  }
+  if (currentEvtSource) {
+    currentEvtSource.close();
+    currentEvtSource = null;
+  }
+  setScanRunning(false);
+  setStatusMsg('중지됨');
+}
+
+function setScanRunning(running) {
+  scanRunning = running;
+  const btn = document.getElementById('scanBtn');
+  btn.textContent = running ? '■ 중지' : '▶ 스캔';
+  btn.className = running ? 'btn btn-red' : 'btn btn-green';
+}
+
+function handleMsg(msg) {
+  const type = msg.type;
+
+  if (type === 'heartbeat') return;
+
+  if (type === 'status') {
+    setStatusMsg(msg.msg);
+  }
+  else if (type === 'progress') {
+    setStatusMsg(msg.msg);
+    const phase = msg.phase || 1;
+    const pct = msg.total > 0 ? (msg.scanned / msg.total * 100) : 0;
+
+    if (phase === 1) {
+      setPhase(1);
+      setProgress(pct * 0.3);  // 1단계: 0~30%
+      document.getElementById('resultsMeta').textContent =
+        `거래량 필터: ${(msg.scanned||0).toLocaleString()}/${(msg.total||0).toLocaleString()} | 후보 ${(msg.candidates||0).toLocaleString()}개`;
+    } else if (phase === 2) {
+      setPhase(2);
+      setProgress(30 + pct * 0.3);  // 2단계: 30~60%
+    } else if (phase === 3) {
+      setPhase(3);
+      setProgress(60 + pct * 0.4);  // 3단계: 60~100%
+      const matches = msg.matches || matchCount;
+      document.getElementById('resultsMeta').textContent =
+        `${(msg.scanned||0).toLocaleString()}/${(msg.total||0).toLocaleString()} 평가 | ${matches}개 발견`;
+    }
+  }
+  else if (type === 'match') {
+    matchCount++;
+    document.getElementById('matchBadge').textContent = `${matchCount}개 발견`;
+    const empty = document.getElementById('emptyState');
+    if (empty) empty.remove();
+    appendResultCard(msg.result);
+  }
+  else if (type === 'warn') {
+    console.warn(msg.msg);
+  }
+  else if (type === 'done') {
+    setProgress(100);
+    setScanRunning(false);
+    setPhase(-1); // 완료
+    const label = msg.cancelled ? '중지됨' : '완료';
+    setStatusMsg(`${label} — ${matchCount}개 발견`);
+    document.getElementById('resultsMeta').textContent =
+      `총 ${(msg.total_scanned||0).toLocaleString()}개 평가 | ${matchCount}개 발견 | ${new Date().toLocaleTimeString()}`;
+    if (matchCount === 0) {
+      document.getElementById('resultsBody').innerHTML =
+        '<div class="empty-state"><p>조건에 맞는 종목이 없습니다</p></div>';
+    }
+  }
+  else if (type === 'error') {
+    setScanRunning(false);
+    setStatusMsg('오류: ' + msg.msg);
+    showToast('오류: ' + msg.msg, 'error');
+  }
+}
+
+function appendResultCard(r) {
+  const body = document.getElementById('resultsBody');
+  const div = document.createElement('div');
+  div.className = `result-card ${r.all_pass ? 'pass' : ''}`;
+  div.innerHTML = `
+    <div class="card-head">
+      <span class="card-ticker">${r.ticker}</span>
+      <span class="card-badge ${r.all_pass ? 'badge-pass' : 'badge-fail'}">
+        ${r.all_pass ? '✓ 통과' : `${r.pass_count}/${r.total_count}`}
+      </span>
+    </div>
+    <div class="card-score">${r.pass_count} / ${r.total_count} 조건 충족</div>
+    <div class="card-conds">
+      ${r.conditions.map(c => {
+        let cls='ci-skip', icon='−';
+        if (c.pass===true){cls='ci-pass';icon='✓';}
+        else if (c.pass===false){cls='ci-fail';icon='✗';}
+        return `<div class="cond-row">
+          <div class="ci ${cls}">${icon}</div>
+          <div class="ct">${c.label}</div>
+        </div>`;
+      }).join('')}
+    </div>`;
+  body.appendChild(div);
+}
+
+// ── 진행 UI 헬퍼 ─────────────────────────────────────────────
+function setProgress(pct) {
+  document.getElementById('progressBar').style.width = Math.min(pct, 100) + '%';
+}
+
+function setPhase(phase) {
+  // phase: 1=거래량필터, 2=데이터로드, 3=조건평가, -1=완료, 0=초기
+  const dots = ['phase1dot','phase2dot','phase3dot'];
+  dots.forEach((id, i) => {
+    const dot = document.getElementById(id);
+    const p = i + 1;
+    if (phase === -1) dot.className = 'phase-dot done';
+    else if (p < phase) dot.className = 'phase-dot done';
+    else if (p === phase) dot.className = 'phase-dot active';
+    else dot.className = 'phase-dot';
+  });
+  document.getElementById('statusLabel').textContent =
+    phase === 0 ? '대기' :
+    phase === 1 ? '1단계: 거래량 필터' :
+    phase === 2 ? '2단계: 데이터 로드' :
+    phase === 3 ? '3단계: 조건 평가' : '완료';
+}
+
+function setStatusMsg(msg) {
+  document.getElementById('statusMsg').textContent = msg;
+}
+
+// ── 토스트 ────────────────────────────────────────────────────
+function showToast(msg, type='info') {
+  const t = document.createElement('div');
+  t.textContent = msg;
+  t.style.cssText = `position:fixed;bottom:18px;right:18px;padding:9px 15px;border-radius:7px;
+    font-size:.78rem;z-index:9999;color:#fff;box-shadow:0 4px 14px rgba(0,0,0,.5);
+    background:${type==='error'?'#7f1d1d':type==='warn'?'#78350f':'#1e3a5f'};`;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 3000);
+}
+
+init();
+</script>
+</body>
+</html>

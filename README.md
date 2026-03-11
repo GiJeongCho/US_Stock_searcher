@@ -1,158 +1,158 @@
-# US Stock Alarm
+# US Stock Screener
 
-미국 주식 시장 모니터링 및 알람 시스템
-
----
-
-## 개요
-
-지정한 종목의 가격 조건이 충족될 때 알림을 보내는 CLI 기반 알람기.
-실시간 시세 조회 → 조건 평가 → 알림 발송의 단순한 루프 구조.
+미국 전체 상장 종목을 대상으로 기술적 조건을 평가하는 웹 기반 검색기.
 
 ---
 
-## 기능 계획
+## 구현 현황
 
-### 핵심 기능
-- **가격 알람**: 지정 가격 이상/이하 도달 시 알림
-- **등락률 알람**: 전일 대비 ±N% 변동 시 알림
-- **다중 종목 감시**: 여러 티커를 동시에 모니터링
-- **알람 조건 파일 관리**: JSON/YAML로 알람 규칙 저장·불러오기
-
-### 부가 기능 (선택)
-- 장 시작/마감 시간 자동 인식 (09:30~16:00 ET)
-- 알람 발송 이력 로깅
-- Telegram / Discord / 데스크탑 알림 채널 선택
+- [x] 전체 미장 종목 유니버스 (NASDAQ FTP, ~7,000개)
+- [x] 거래량 선필터 → 기술적 조건 평가 2단계 스캔
+- [x] 조건별 수치 웹 UI에서 직접 수정
+- [x] SSE 실시간 진행 스트리밍
+- [x] gunicorn + systemd 상시 구동
+- [ ] 알림 발송 (Telegram 등)
+- [ ] 코인 검색기
 
 ---
 
-## 기술 스택 후보
+## 실행
 
-| 구분 | 옵션 A | 옵션 B |
-|------|--------|--------|
-| 언어 | Python | Go |
-| 시세 API | `yfinance` (무료) | Alpha Vantage / Polygon.io |
-| 알림 채널 | Telegram Bot API | 데스크탑 notify-send |
-| 스케줄 | `schedule` 라이브러리 | cron |
+```bash
+# 개발 서버
+python app.py
 
-> 기본 방향: **Python + yfinance + Telegram**
+# 운영 (서비스 등록 후)
+sudo systemctl start stock-screener
+sudo systemctl status stock-screener
+```
+
+접속: `http://<서버IP>:5001`
 
 ---
 
-## 예상 디렉토리 구조
+## 디렉토리 구조
 
 ```
 US_Stock_searcher/
-├── README.md
+├── app.py                      # Flask 앱 · API 라우트 · SSE 스트리밍
+├── start.sh                    # gunicorn 실행 스크립트
 ├── requirements.txt
 ├── config/
-│   ├── alarms.json          # 알람 규칙 목록
-│   └── settings.json        # API 키, 알림 채널 설정
+│   ├── logic1.json             # 급등이 조건 설정
+│   ├── logic2.json             # 벌떡이 조건 설정
+│   ├── watchlist.json          # 즐겨찾기 종목 (자동 생성)
+│   └── us_tickers.json         # 종목 유니버스 캐시 (24h, 자동 생성)
 ├── src/
-│   ├── main.py              # 진입점 · 메인 루프
-│   ├── fetcher.py           # 시세 조회 (yfinance 래핑)
-│   ├── evaluator.py         # 알람 조건 평가 로직
-│   ├── notifier.py          # 알림 발송 (Telegram 등)
-│   └── alarm_manager.py     # 알람 규칙 CRUD
-└── logs/
-    └── alarm_history.log
+│   ├── ticker_provider.py      # NASDAQ FTP에서 전체 종목 리스트 수집
+│   ├── fetcher.py              # yfinance 래퍼 · 인터벌별 캐시
+│   ├── indicators.py           # SMA · 볼린저밴드 · 엔벨로프 계산
+│   ├── evaluator.py            # 종목 × 로직 조건 평가
+│   └── scanner.py              # 전체 스캔 엔진 (배치 + 캐시 주입)
+└── templates/
+    └── index.html              # 웹 UI (SSE 수신 · 조건 편집)
 ```
 
 ---
 
-## 알람 규칙 형식 (alarms.json 예시)
+## 검색기 로직
 
-```json
-[
-  {
-    "id": "aapl-break-200",
-    "ticker": "AAPL",
-    "condition": "price_above",
-    "target": 200.0,
-    "message": "AAPL $200 돌파!",
-    "active": true,
-    "once": true
-  },
-  {
-    "id": "nvda-drop-5pct",
-    "ticker": "NVDA",
-    "condition": "change_below",
-    "target": -5.0,
-    "message": "NVDA 5% 이상 하락",
-    "active": true,
-    "once": false
-  }
-]
-```
+### 급등이 (`config/logic1.json`)
 
-### 지원 조건 타입
+| # | 조건 | 파라미터 |
+|---|------|----------|
+| 1 | 5분 이평배열 | MA5 ≥ MA20 ≥ MA60 |
+| 2 | 5분 이평배열 | MA5 ≥ MA20 ≥ MA200 |
+| 3 | 5분 이평배열 | MA5 ≥ MA100 ≥ MA150 |
+| 4 | 5분 볼린저밴드 상향돌파 | 기간 20, 표준편차 2.0 |
+| 5 | 5분 볼린저밴드 상한선 이상 | 기간 20, 표준편차 2.0 |
+| 6 | 일 거래량 | 300,000 ~ 999,999,999 |
+| 7 | 5분 이평이격도 MA5-MA200 | 10% 이내 |
+| 8 | 5분 이평이격도 MA5-MA20 | 5% 이내 |
+| 9 | 시가총액 | $30M 이상 |
+| 10 | 5분 MA5 ≥ MA224 | — |
+| 11 | 5분 엔벨로프 상향돌파 | 기간 12, 2.2% |
+| 12 | 5분 엔벨로프 상향돌파 | 기간 20, 3.3% |
+| 13 | 유통비율 | 20% 이상 (비활성화) |
+| 14 | 60분 이평배열 | MA5 ≥ MA20 ≥ MA60 |
+| 15 | 60분 이평배열 | MA20 ≥ MA60 ≥ MA112 |
+| 16 | 60분 이평배열 | MA20 ≥ MA112 ≥ MA250 |
 
-| condition | 설명 |
-|-----------|------|
-| `price_above` | 현재가 ≥ target |
-| `price_below` | 현재가 ≤ target |
-| `change_above` | 등락률 ≥ target% |
-| `change_below` | 등락률 ≤ target% |
+### 벌떡이 (`config/logic2.json`)
 
----
+| # | 조건 | 파라미터 |
+|---|------|----------|
+| 1 | 일 거래량 | 300,000 ~ 999,999,999 |
+| 2 | 시가총액 | $22M 이상 |
+| 3 | 1분 이평배열 | MA5 ≥ MA60 ≥ MA112 |
+| 4 | 1분 이평배열 | MA5 ≥ MA112 ≥ MA224 |
+| 5 | 5분 이평배열 | MA5 ≥ MA20 ≥ MA60 |
+| 6 | 5분 이평배열 | MA60 ≥ MA100 ≥ MA200 |
+| 7 | 5분 이평이격도 MA5-MA224 | 10% 이내 |
+| 8 | 15분 이평배열 | MA5 ≥ MA20 ≥ MA60 |
+| 9 | 15분 이평배열 | MA20 ≥ MA60 ≥ MA200 |
+| 10 | 일봉 MA5 ≥ MA10 | — |
+| 11 | 5분 엔벨로프 상향돌파 | 기간 12, 3.0% |
+| 12 | 1분 엔벨로프 상향돌파 | 기간 12, 2.0% |
 
-## 실행 흐름
-
-```
-main.py 시작
-  └─ alarms.json 로드
-  └─ 루프 (N초 간격)
-       ├─ fetcher: 감시 종목 시세 일괄 조회
-       ├─ evaluator: 각 알람 조건 평가
-       │    └─ 조건 충족 → notifier 호출
-       └─ 대기 (기본 60초, 장 외 시간은 슬립)
-```
+> 모든 수치는 웹 UI 왼쪽 패널에서 실시간 수정 후 저장 가능.
 
 ---
 
-## 설정 (settings.json 예시)
+## API 호출 전략 (rate limit 대응)
 
-```json
-{
-  "interval_seconds": 60,
-  "telegram": {
-    "bot_token": "YOUR_BOT_TOKEN",
-    "chat_id": "YOUR_CHAT_ID"
-  },
-  "market_hours": {
-    "open": "09:30",
-    "close": "16:00",
-    "timezone": "America/New_York"
-  }
-}
+전체 ~7,000종목을 효율적으로 스캔하기 위해 3단계로 나눔.
+
+```
+Stage 1 │ yf.download() 100종목씩 배치  →  일봉 거래량 선필터
+        │ ~70번 API 호출 / 약 3분
+        ↓
+Stage 2 │ yf.download() 50종목씩 배치  →  타임프레임별 데이터 프리로드
+        │ 후보(~수백개) × 타임프레임 수 / 50번 호출 / 약 2분
+        ↓
+Stage 3 │ 캐시에서만 읽음              →  조건 평가 (API 호출 0)
+        │ 약 1분
 ```
 
----
-
-## 구현 순서 (로드맵)
-
-1. `fetcher.py` — yfinance로 단일 종목 시세 조회
-2. `evaluator.py` — 조건 평가 함수
-3. `notifier.py` — Telegram 메시지 발송
-4. `alarm_manager.py` — alarms.json CRUD
-5. `main.py` — 루프 조립 + 장 시간 체크
-6. CLI 인터페이스 추가 (알람 추가/삭제/목록)
-7. (선택) 비트코인 모드 분리 또는 통합
+| 항목 | 값 |
+|------|-----|
+| 일봉 배치 크기 | 100종목 |
+| 분봉 배치 크기 | 50종목 |
+| 배치 간 대기 | 0.3초 |
+| 개별 캐시 TTL | 1m=30s / 5m=2m / 15m=5m / 60m=10m / 1d=10m |
 
 ---
 
-## 사용 예시 (목표 CLI)
+## 지원 조건 타입
+
+| type | 설명 |
+|------|------|
+| `ma_alignment` | MA_a ≥ MA_b ≥ MA_c 정배열 |
+| `ma_compare` | MA_fast ≥ MA_slow |
+| `ma_gap` | \|MA_fast − MA_slow\| / MA_slow ≤ N% |
+| `bb_breakout` | 볼린저밴드 상한선 상향돌파 (전봉 이하 → 현봉 이상) |
+| `bb_above` | 볼린저밴드 상한선 이상 |
+| `envelope_breakout` | 엔벨로프 상한선 상향돌파 |
+| `volume_range` | 거래량 min ~ max |
+| `market_cap_min` | 시가총액 ≥ N USD |
+| `float_ratio_min` | 유통비율 ≥ N% |
+
+---
+
+## 서비스 관리
 
 ```bash
-# 알람 추가
-python main.py add --ticker AAPL --condition price_above --target 200
+sudo systemctl start   stock-screener   # 시작
+sudo systemctl stop    stock-screener   # 중지
+sudo systemctl restart stock-screener   # 재시작
+sudo systemctl enable  stock-screener   # 부팅 시 자동 시작 등록
+journalctl -u stock-screener -f         # 실시간 로그
+```
 
-# 알람 목록 확인
-python main.py list
+---
 
-# 모니터링 시작
-python main.py run
+## 의존성 설치
 
-# 특정 알람 비활성화
-python main.py disable aapl-break-200
+```bash
+pip install flask yfinance pandas numpy gunicorn
 ```
