@@ -1,21 +1,43 @@
 """
 US Stock Screener - Flask 웹 앱
+백그라운드에서 자동 모니터링, 프론트는 결과 뷰어
 """
 import json
 import os
 import threading
 import time
-from queue import Queue, Empty
-from flask import Flask, Response, jsonify, render_template, request
+from datetime import datetime
+from flask import Flask, jsonify, render_template, request
 
 app = Flask(__name__)
 
 CONFIG_DIR = os.path.join(os.path.dirname(__file__), "config")
 WATCHLIST_FILE = os.path.join(CONFIG_DIR, "watchlist.json")
 
-# 스캔 세션 관리
-_scans: dict[str, dict] = {}   # scan_id -> {queue, stop_event, thread}
-_scans_lock = threading.Lock()
+# ── 공유 스캔 상태 (백그라운드 스캐너 ↔ API) ──────────────────
+_state_lock = threading.Lock()
+_scan_state = {
+    "running": False,
+    "round": 0,
+    "phase": 0,
+    "status_msg": "서버 시작 중...",
+    "progress_pct": 0,
+    "logic_id": "logic1",
+    # ticker -> {result, round, found_at(ISO), updated_at(ISO)}
+    "active": {},
+    # ticker -> {result, round, found_at(ISO), exited_at(ISO)}
+    "history": {},
+}
+
+
+def _update_state(**kwargs):
+    with _state_lock:
+        _scan_state.update(kwargs)
+
+
+def _get_state() -> dict:
+    with _state_lock:
+        return dict(_scan_state)
 
 
 # ── 설정 파일 헬퍼 ──────────────────────────────────────────
@@ -109,78 +131,218 @@ def universe_refresh():
     return jsonify({"ok": True, "count": len(tickers)})
 
 
-# ── 스캔 시작 (SSE 스트리밍) ─────────────────────────────────
+# ── 스캔 결과 조회 (프론트 폴링용) ─────────────────────────────
 
-@app.route("/api/scan/start", methods=["POST"])
-def scan_start():
-    body = request.get_json() or {}
-    logic_id = body.get("logic_id", "logic1")
-    mode = body.get("mode", "universe")   # "universe" | "watchlist"
-    logic = load_logic(logic_id)
-
-    scan_id = str(int(time.time() * 1000))
-    q = Queue()
-    stop_event = threading.Event()
-
-    def run():
-        from src.scanner import scan_universe, scan_watchlist
-        if mode == "watchlist":
-            tickers = load_watchlist()
-            if not tickers:
-                q.put({"type": "error", "msg": "즐겨찾기 종목이 없습니다"})
-                return
-            scan_watchlist(tickers, logic, q, stop_event)
-        else:
-            scan_universe(logic, q, stop_event)
-
-    t = threading.Thread(target=run, daemon=True)
-    with _scans_lock:
-        _scans[scan_id] = {"queue": q, "stop": stop_event, "thread": t}
-    t.start()
-
-    return jsonify({"scan_id": scan_id})
+@app.route("/api/results", methods=["GET"])
+def get_results():
+    st = _get_state()
+    return jsonify({
+        "running": st["running"],
+        "round": st["round"],
+        "phase": st["phase"],
+        "status_msg": st["status_msg"],
+        "progress_pct": st["progress_pct"],
+        "logic_id": st["logic_id"],
+        "active": list(st["active"].values()),
+        "history": list(st["history"].values()),
+    })
 
 
-@app.route("/api/scan/stream/<scan_id>")
-def scan_stream(scan_id):
-    with _scans_lock:
-        sess = _scans.get(scan_id)
-    if not sess:
-        return jsonify({"error": "세션 없음"}), 404
+# ── 백그라운드 스캐너 ────────────────────────────────────────
 
-    q: Queue = sess["queue"]
+_bg_stop = threading.Event()
 
-    def generate():
-        while True:
-            try:
-                msg = q.get(timeout=20)
-                yield f"data: {json.dumps(msg, ensure_ascii=False)}\n\n"
-                if msg.get("type") in ("done", "error"):
-                    # 세션 정리
-                    with _scans_lock:
-                        _scans.pop(scan_id, None)
-                    break
-            except Empty:
-                yield "data: {\"type\":\"heartbeat\"}\n\n"
 
-    return Response(
-        generate(),
-        mimetype="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "X-Accel-Buffering": "no",
-        },
+def _drain_queue_to_state(q, round_num):
+    """Queue에 쌓인 scanner 메시지를 소비해서 _scan_state에 반영"""
+    from queue import Empty
+    while True:
+        try:
+            msg = q.get_nowait()
+        except Empty:
+            break
+        mtype = msg.get("type")
+        if mtype == "progress":
+            phase = msg.get("phase", 1)
+            total = msg.get("total", 1) or 1
+            scanned = msg.get("scanned", msg.get("loaded", 0))
+            pct_in_phase = scanned / total * 100
+            if phase == 1:
+                pct = pct_in_phase * 0.3
+            elif phase == 2:
+                pct = 30 + pct_in_phase * 0.3
+            else:
+                pct = 60 + pct_in_phase * 0.4
+            _update_state(phase=phase, progress_pct=int(pct),
+                          status_msg=msg.get("msg", ""))
+        elif mtype == "status":
+            _update_state(status_msg=msg.get("msg", ""))
+
+
+def _background_scanner():
+    """서버 시작과 동시에 logic1으로 무한 모니터링"""
+    from queue import Queue
+    from src.scanner import (
+        ROUND_INTERVAL, _batch_daily_volume_filter,
+        _preload_timeframes, _get_intervals_needed,
     )
+    from src.ticker_provider import get_us_tickers
+    from src.evaluator import evaluate
+
+    _update_state(running=True, status_msg="종목 리스트 로딩 중...")
+
+    tickers = None
+    for attempt in range(5):
+        if _bg_stop.is_set():
+            return
+        try:
+            tickers = get_us_tickers()
+            break
+        except Exception as e:
+            wait = 10 * (attempt + 1)
+            _update_state(status_msg=f"종목 로드 실패 (재시도 {attempt+1}/5): {e} | {wait}초 후 재시도")
+            time.sleep(wait)
+
+    if not tickers:
+        _update_state(running=False, status_msg="종목 로드 최종 실패 — 서버 재시작 필요")
+        return
+
+    _update_state(status_msg=f"총 {len(tickers):,}개 종목 확인")
+    q = Queue()
+
+    round_num = 0
+    while not _bg_stop.is_set():
+        round_num += 1
+        logic_id = _scan_state["logic_id"]
+        try:
+            logic = load_logic(logic_id)
+        except Exception:
+            logic = load_logic("logic1")
+
+        _update_state(round=round_num, phase=1, progress_pct=0,
+                      status_msg=f"R#{round_num} 거래량 필터 중...")
+
+        vol_cond = next(
+            (c for c in logic["conditions"]
+             if c["type"] == "volume_range" and c.get("enabled", True)),
+            None,
+        )
+        min_vol = int(vol_cond["min"]) if vol_cond else 300_000
+
+        candidates = _batch_daily_volume_filter(tickers, min_vol, q, _bg_stop)
+        _drain_queue_to_state(q, round_num)
+        if _bg_stop.is_set():
+            break
+
+        _update_state(phase=2, progress_pct=30,
+                      status_msg=f"R#{round_num} 후보 {len(candidates):,}개 데이터 로드 중...")
+
+        intervals_needed = _get_intervals_needed(logic)
+        if candidates and intervals_needed:
+            _preload_timeframes(candidates, intervals_needed, q, _bg_stop)
+            _drain_queue_to_state(q, round_num)
+        if _bg_stop.is_set():
+            break
+
+        _update_state(phase=3, progress_pct=60,
+                      status_msg=f"R#{round_num} {len(candidates):,}개 조건 평가 중...")
+
+        matches = []
+        for idx, ticker in enumerate(candidates):
+            if _bg_stop.is_set():
+                break
+            try:
+                result = evaluate(ticker, logic)
+                if result["all_pass"]:
+                    matches.append(result)
+            except Exception:
+                pass
+
+            if idx % 20 == 0:
+                pct = 60 + (idx / max(len(candidates), 1)) * 40
+                _update_state(progress_pct=int(pct),
+                              status_msg=f"R#{round_num} {idx+1:,}/{len(candidates):,} 평가 | {len(matches)}개 발견")
+
+        _drain_queue_to_state(q, round_num)
+        if _bg_stop.is_set():
+            break
+
+        now_iso = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        new_tickers = {r["ticker"] for r in matches}
+
+        with _state_lock:
+            old_active = dict(_scan_state["active"])
+
+            for ticker_key, data in old_active.items():
+                if ticker_key not in new_tickers:
+                    _scan_state["history"][ticker_key] = {
+                        "result": data["result"],
+                        "round": data["round"],
+                        "found_at": data["found_at"],
+                        "exited_at": now_iso,
+                    }
+                    del _scan_state["active"][ticker_key]
+
+            for r in matches:
+                tk = r["ticker"]
+                existing = _scan_state["active"].get(tk)
+                _scan_state["active"][tk] = {
+                    "result": r,
+                    "round": round_num,
+                    "found_at": existing["found_at"] if existing else now_iso,
+                    "updated_at": now_iso,
+                }
+                _scan_state["history"].pop(tk, None)
+
+            _scan_state["phase"] = -1
+            _scan_state["progress_pct"] = 100
+            _scan_state["status_msg"] = (
+                f"R#{round_num} 완료 | 충족 {len(_scan_state['active'])}개 "
+                f"| 이력 {len(_scan_state['history'])}개 | {now_iso}"
+            )
+
+        for remaining in range(ROUND_INTERVAL, 0, -1):
+            if _bg_stop.is_set():
+                break
+            _update_state(
+                status_msg=f"R#{round_num} 완료 | 다음 스캔까지 {remaining}초",
+                progress_pct=int(100 - (remaining / ROUND_INTERVAL * 100)),
+            )
+            time.sleep(1)
+
+    _update_state(running=False, status_msg="모니터링 중지됨")
 
 
-@app.route("/api/scan/stop/<scan_id>", methods=["POST"])
-def scan_stop(scan_id):
-    with _scans_lock:
-        sess = _scans.get(scan_id)
-    if sess:
-        sess["stop"].set()
-    return jsonify({"ok": True})
+_bg_thread = None
+
+
+def start_background_scanner():
+    global _bg_thread
+    if _bg_thread and _bg_thread.is_alive():
+        return
+    _bg_stop.clear()
+    _bg_thread = threading.Thread(target=_background_scanner, daemon=True)
+    _bg_thread.start()
+
+
+_scanner_started = False
+
+@app.before_request
+def _ensure_scanner():
+    global _scanner_started
+    if not _scanner_started:
+        _scanner_started = True
+        if os.environ.get("WERKZEUG_RUN_MAIN") == "true" or not app.debug:
+            start_background_scanner()
 
 
 if __name__ == "__main__":
-    app.run(debug=True, host="0.0.0.0", port=5001, threaded=True)
+    import sys
+    use_reload = "--reload" in sys.argv
+    app.run(
+        debug=use_reload,
+        use_reloader=use_reload,
+        host="0.0.0.0",
+        port=5001,
+        threaded=True,
+    )

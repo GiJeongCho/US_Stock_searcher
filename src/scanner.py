@@ -5,20 +5,40 @@ API 호출 전략:
   Stage 2 - 후보 종목을 타임프레임별로 배치 다운로드 후 평가
             (후보 500개 × 5타임프레임 = 개별 2500번 대신 타임프레임당 몇 번)
 """
+import io
+import os
+import sys
 import time
+import logging
 import threading
+import contextlib
 import yfinance as yf
 import pandas as pd
 from queue import Queue
+
+logging.getLogger("yfinance").setLevel(logging.CRITICAL)
+
+
+@contextlib.contextmanager
+def _suppress_yf_output():
+    """yfinance의 'possibly delisted' 등 stdout/stderr 직접 출력 억제"""
+    devnull = open(os.devnull, "w")
+    old_stdout, old_stderr = sys.stdout, sys.stderr
+    sys.stdout, sys.stderr = devnull, devnull
+    try:
+        yield
+    finally:
+        sys.stdout, sys.stderr = old_stdout, old_stderr
+        devnull.close()
 
 from src.ticker_provider import get_us_tickers
 from src.fetcher import _cache, _lock, CACHE_TTL, PERIOD_MAP
 from src.evaluator import evaluate
 
-# 배치 크기 설정
-DAILY_BATCH = 100   # 일봉 선필터: 100종목씩
-INTRA_BATCH = 50    # 분봉 배치: 50종목씩 (데이터 양이 많아 작게)
-MIN_CALL_INTERVAL = 0.3  # 배치 간 최소 대기(초)
+DAILY_BATCH = 100
+INTRA_BATCH = 50
+MIN_CALL_INTERVAL = 0.3
+ROUND_INTERVAL = 60  # 라운드 간 대기(초)
 
 
 def _put(q: Queue, msg: dict):
@@ -41,14 +61,15 @@ def _batch_daily_volume_filter(
             break
         batch = tickers[i : i + DAILY_BATCH]
         try:
-            df = yf.download(
-                " ".join(batch),
-                period="2d",
-                interval="1d",
-                progress=False,
-                auto_adjust=True,
-                group_by="ticker",
-            )
+            with _suppress_yf_output():
+                df = yf.download(
+                    " ".join(batch),
+                    period="2d",
+                    interval="1d",
+                    progress=False,
+                    auto_adjust=True,
+                    group_by="ticker",
+                )
             for t in batch:
                 vol = _extract_volume(df, t, len(batch))
                 if vol is not None and vol >= min_vol:
@@ -114,14 +135,15 @@ def _preload_timeframes(
                 break
             batch = candidates[i : i + INTRA_BATCH]
             try:
-                df_all = yf.download(
-                    " ".join(batch),
-                    period=period,
-                    interval=interval,
-                    progress=False,
-                    auto_adjust=True,
-                    group_by="ticker",
-                )
+                with _suppress_yf_output():
+                    df_all = yf.download(
+                        " ".join(batch),
+                        period=period,
+                        interval=interval,
+                        progress=False,
+                        auto_adjust=True,
+                        group_by="ticker",
+                    )
                 now = time.time()
                 for t in batch:
                     df_t = _extract_ticker_df(df_all, t, len(batch))
@@ -160,118 +182,188 @@ def _extract_ticker_df(df_all, ticker, batch_size) -> pd.DataFrame | None:
         return None
 
 
-# ── 메인 스캔 함수 ─────────────────────────────────────────────
+# ── 공통: 라운드 대기 ──────────────────────────────────────────
+
+def _wait_next_round(q: Queue, stop_event: threading.Event, round_num: int):
+    """ROUND_INTERVAL초 대기하면서 매초 countdown 메시지 전송"""
+    for remaining in range(ROUND_INTERVAL, 0, -1):
+        if stop_event.is_set():
+            return
+        _put(q, {
+            "type": "countdown",
+            "round": round_num,
+            "remaining": remaining,
+            "msg": f"라운드 #{round_num} 완료 | 다음 스캔까지 {remaining}초",
+        })
+        time.sleep(1)
+
+
+def _get_intervals_needed(logic: dict) -> set[str]:
+    intervals = set()
+    for c in logic["conditions"]:
+        if c.get("enabled", True) and "interval" in c:
+            intervals.add(c["interval"])
+    intervals.discard("1d")
+    return intervals
+
+
+# ── 단일 라운드 실행 ───────────────────────────────────────────
+
+def _run_universe_round(
+    tickers: list[str],
+    logic: dict,
+    q: Queue,
+    stop_event: threading.Event,
+    round_num: int,
+) -> list[dict]:
+    """전체 미장 1라운드 수행 → 통과 종목 결과 리스트 반환"""
+    vol_cond = next(
+        (c for c in logic["conditions"] if c["type"] == "volume_range" and c.get("enabled", True)),
+        None,
+    )
+    min_vol = int(vol_cond["min"]) if vol_cond else 300_000
+
+    candidates = _batch_daily_volume_filter(tickers, min_vol, q, stop_event)
+    if stop_event.is_set():
+        return []
+
+    _put(q, {"type": "status", "msg": f"후보 {len(candidates):,}개 → 기술적 분석 준비 중..."})
+
+    intervals_needed = _get_intervals_needed(logic)
+    if candidates and intervals_needed:
+        _preload_timeframes(candidates, intervals_needed, q, stop_event)
+
+    if stop_event.is_set():
+        return []
+
+    matches = []
+    total_cands = len(candidates)
+    _put(q, {"type": "status", "msg": f"[3단계] {total_cands:,}개 상세 조건 평가 중..."})
+
+    for idx, ticker in enumerate(candidates):
+        if stop_event.is_set():
+            break
+        try:
+            result = evaluate(ticker, logic)
+            if result["all_pass"]:
+                matches.append(result)
+        except Exception:
+            pass
+
+        if idx % 10 == 0 or idx == total_cands - 1:
+            _put(q, {
+                "type": "progress",
+                "phase": 3,
+                "scanned": idx + 1,
+                "total": total_cands,
+                "matches": len(matches),
+                "msg": f"[3단계] {idx+1:,}/{total_cands:,} 평가 중 | {len(matches)}개 발견",
+            })
+
+    return matches
+
+
+def _run_watchlist_round(
+    tickers: list[str],
+    logic: dict,
+    q: Queue,
+    stop_event: threading.Event,
+    round_num: int,
+) -> list[dict]:
+    """즐겨찾기 1라운드 수행 → 통과 종목 결과 리스트 반환"""
+    intervals_needed = _get_intervals_needed(logic)
+    if intervals_needed:
+        _preload_timeframes(tickers, intervals_needed, q, stop_event)
+
+    if stop_event.is_set():
+        return []
+
+    matches = []
+    total = len(tickers)
+    for idx, ticker in enumerate(tickers):
+        if stop_event.is_set():
+            break
+        try:
+            result = evaluate(ticker, logic)
+            if result["all_pass"]:
+                matches.append(result)
+        except Exception:
+            pass
+        _put(q, {
+            "type": "progress",
+            "phase": 3,
+            "scanned": idx + 1,
+            "total": total,
+            "matches": len(matches),
+            "msg": f"{ticker} 평가 완료 ({idx+1}/{total})",
+        })
+
+    return matches
+
+
+# ── 메인 스캔 함수 (무한 루프 모니터링) ─────────────────────────
 
 def scan_universe(logic: dict, q: Queue, stop_event: threading.Event):
-    """
-    전체 미장 스캔. q로 실시간 진행 메시지 전송.
-    """
+    """전체 미장 실시간 모니터링. 라운드 단위로 무한 반복."""
     try:
-        # 종목 리스트
         _put(q, {"type": "status", "msg": "종목 리스트 로딩 중..."})
         tickers = get_us_tickers()
         _put(q, {"type": "status", "msg": f"총 {len(tickers):,}개 종목 확인", "ticker_count": len(tickers)})
 
-        # 거래량 조건 파악
-        vol_cond = next(
-            (c for c in logic["conditions"] if c["type"] == "volume_range" and c.get("enabled", True)),
-            None,
-        )
-        min_vol = int(vol_cond["min"]) if vol_cond else 300_000
+        round_num = 0
+        while not stop_event.is_set():
+            round_num += 1
+            _put(q, {"type": "round_start", "round": round_num})
 
-        # Stage 1: 일봉 거래량 선필터
-        candidates = _batch_daily_volume_filter(tickers, min_vol, q, stop_event)
-        if stop_event.is_set():
-            _put(q, {"type": "done", "cancelled": True, "matches": 0})
-            return
+            matches = _run_universe_round(tickers, logic, q, stop_event, round_num)
 
-        _put(q, {"type": "status", "msg": f"후보 {len(candidates):,}개 → 기술적 분석 준비 중..."})
-
-        # 사용되는 타임프레임 파악
-        intervals_needed = set()
-        for c in logic["conditions"]:
-            if c.get("enabled", True) and "interval" in c:
-                intervals_needed.add(c["interval"])
-        intervals_needed.discard("1d")  # 일봉은 이미 로드됨
-
-        # Stage 2 준비: 타임프레임별 배치 다운로드
-        if candidates and intervals_needed:
-            _preload_timeframes(candidates, intervals_needed, q, stop_event)
-
-        if stop_event.is_set():
-            _put(q, {"type": "done", "cancelled": True, "matches": 0})
-            return
-
-        # Stage 3: 조건 평가
-        matches = []
-        total_cands = len(candidates)
-        _put(q, {"type": "status", "msg": f"[3단계] {total_cands:,}개 상세 조건 평가 중..."})
-
-        for idx, ticker in enumerate(candidates):
             if stop_event.is_set():
                 break
-            try:
-                result = evaluate(ticker, logic)
-                if result["all_pass"]:
-                    matches.append(result)
-                    _put(q, {"type": "match", "result": result})
-            except Exception as e:
-                pass
 
-            if idx % 10 == 0 or idx == total_cands - 1:
-                _put(q, {
-                    "type": "progress",
-                    "phase": 3,
-                    "scanned": idx + 1,
-                    "total": total_cands,
-                    "matches": len(matches),
-                    "msg": f"[3단계] {idx+1:,}/{total_cands:,} 평가 중 | {len(matches)}개 발견",
-                })
+            _put(q, {
+                "type": "round_done",
+                "round": round_num,
+                "matches": matches,
+                "total_scanned": len(tickers),
+                "timestamp": time.time(),
+            })
 
-        _put(q, {
-            "type": "done",
-            "cancelled": stop_event.is_set(),
-            "matches": len(matches),
-            "total_scanned": total_cands,
-        })
+            _wait_next_round(q, stop_event, round_num)
+
+        _put(q, {"type": "done", "cancelled": True, "matches": 0})
 
     except Exception as e:
         _put(q, {"type": "error", "msg": str(e)})
 
 
 def scan_watchlist(tickers: list[str], logic: dict, q: Queue, stop_event: threading.Event):
-    """특정 종목 리스트만 스캔 (즐겨찾기 모드)"""
+    """즐겨찾기 실시간 모니터링. 라운드 단위로 무한 반복."""
     try:
-        total = len(tickers)
-        matches = []
+        if not tickers:
+            _put(q, {"type": "error", "msg": "즐겨찾기 종목이 없습니다"})
+            return
 
-        # 타임프레임 파악 후 배치 프리로드
-        intervals_needed = set()
-        for c in logic["conditions"]:
-            if c.get("enabled", True) and "interval" in c:
-                intervals_needed.add(c["interval"])
-        intervals_needed.discard("1d")
+        round_num = 0
+        while not stop_event.is_set():
+            round_num += 1
+            _put(q, {"type": "round_start", "round": round_num})
 
-        if intervals_needed:
-            _preload_timeframes(tickers, intervals_needed, q, stop_event)
+            matches = _run_watchlist_round(tickers, logic, q, stop_event, round_num)
 
-        for idx, ticker in enumerate(tickers):
             if stop_event.is_set():
                 break
-            result = evaluate(ticker, logic)
-            if result["all_pass"]:
-                matches.append(result)
-                _put(q, {"type": "match", "result": result})
+
             _put(q, {
-                "type": "progress",
-                "phase": 3,
-                "scanned": idx + 1,
-                "total": total,
-                "matches": len(matches),
-                "msg": f"{ticker} 평가 완료 ({idx+1}/{total})",
-                "result": result,
+                "type": "round_done",
+                "round": round_num,
+                "matches": matches,
+                "total_scanned": len(tickers),
+                "timestamp": time.time(),
             })
 
-        _put(q, {"type": "done", "cancelled": stop_event.is_set(), "matches": len(matches)})
+            _wait_next_round(q, stop_event, round_num)
+
+        _put(q, {"type": "done", "cancelled": True, "matches": 0})
+
     except Exception as e:
         _put(q, {"type": "error", "msg": str(e)})

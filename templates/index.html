@@ -29,18 +29,7 @@ header h1 { font-size: 1rem; font-weight: 700; color: #7dd3fc; }
 .section { padding: 12px 14px; border-bottom: 1px solid #1e2130; }
 .section-label { font-size: 0.67rem; text-transform: uppercase; letter-spacing: .8px; color: #4b5563; margin-bottom: 8px; }
 
-/* 스캔 모드 토글 */
-.mode-toggle { display: flex; gap: 0; background: #1e2130; border-radius: 6px; overflow: hidden; margin-bottom: 10px; }
-.mode-btn { flex: 1; padding: 7px 0; text-align: center; font-size: 0.75rem; cursor: pointer; color: #6b7280; border: none; background: none; transition: .15s; }
-.mode-btn.active { background: #1d4ed8; color: #fff; font-weight: 600; }
-
-.scan-row { display: flex; gap: 6px; align-items: center; }
-.logic-select { flex: 1; background: #1e2130; border: 1px solid #374151; border-radius: 6px; padding: 7px 8px; color: #e2e8f0; font-size: 0.78rem; outline: none; }
 .btn { padding: 7px 14px; border-radius: 6px; border: none; cursor: pointer; font-size: 0.78rem; font-weight: 600; transition: .15s; white-space: nowrap; }
-.btn-green  { background: #166534; color: #86efac; }
-.btn-green:hover  { background: #15803d; }
-.btn-red    { background: #7f1d1d; color: #fca5a5; }
-.btn-red:hover    { background: #991b1b; }
 .btn-blue   { background: #1d4ed8; color: #fff; }
 .btn-blue:hover   { background: #2563eb; }
 .btn-gray   { background: #374151; color: #d1d5db; }
@@ -79,12 +68,13 @@ header h1 { font-size: 1rem; font-weight: 700; color: #7dd3fc; }
 /* ─── 오른쪽 패널 ─── */
 .right { display: flex; flex-direction: column; overflow: hidden; }
 
-/* 진행 상태 바 */
 .scan-status { background: #13161f; border-bottom: 1px solid #2d3148; padding: 10px 20px; }
 .status-row { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
 .status-label { font-size: 0.78rem; font-weight: 600; }
 .status-msg { font-size: 0.73rem; color: #9ca3af; flex: 1; }
 .match-badge { background: #14532d; color: #86efac; font-size: 0.72rem; padding: 2px 9px; border-radius: 12px; font-weight: 700; }
+.live-dot { width: 8px; height: 8px; border-radius: 50%; background: #22c55e; box-shadow: 0 0 6px #22c55e; animation: pulse 1.5s infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
 .progress-bar-wrap { background: #1e2130; border-radius: 4px; height: 5px; overflow: hidden; }
 .progress-bar { height: 100%; background: linear-gradient(90deg, #1d4ed8, #7dd3fc); border-radius: 4px; width: 0; transition: width .3s; }
 .phase-labels { display: flex; gap: 14px; margin-top: 5px; }
@@ -93,22 +83,27 @@ header h1 { font-size: 1rem; font-weight: 700; color: #7dd3fc; }
 .phase-dot.active { background: #22c55e; box-shadow: 0 0 5px #22c55e; }
 .phase-dot.done { background: #3b82f6; }
 
-/* 결과 그리드 */
 .results-header { padding: 10px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #1e2130; }
 .results-title { font-size: 0.8rem; font-weight: 600; }
 .results-meta { font-size: 0.7rem; color: #6b7280; }
 
-.results-body { flex: 1; overflow-y: auto; padding: 14px; display: flex; flex-wrap: wrap; gap: 10px; align-content: flex-start; }
+.results-body { flex: 1; overflow-y: auto; display: flex; flex-direction: column; }
+.results-section { padding: 0 14px 10px; }
+.results-section:first-child { padding-top: 14px; }
+.section-divider { display: flex; align-items: center; gap: 10px; padding: 6px 14px; }
+.section-divider span { font-size: 0.68rem; color: #4b5563; white-space: nowrap; }
+.section-divider::before, .section-divider::after { content: ''; flex: 1; height: 1px; background: #2d3148; }
+.card-grid { display: flex; flex-wrap: wrap; gap: 10px; align-content: flex-start; }
 
-.result-card { background: #13161f; border: 1px solid #2d3148; border-radius: 8px; width: 260px; overflow: hidden; transition: border-color .2s; }
-.result-card.pass { border-color: #166534; }
-.result-card.partial { border-color: #713f12; }
+.result-card { background: #13161f; border: 1px solid #2d3148; border-radius: 8px; width: 260px; overflow: hidden; transition: border-color .2s, opacity .3s; }
+.result-card.active { border-color: #166534; }
+.result-card.history { border-color: #374151; opacity: 0.5; }
 .card-head { padding: 9px 12px; background: #1a1d27; display: flex; justify-content: space-between; align-items: center; }
 .card-ticker { font-size: 1rem; font-weight: 800; }
 .card-badge { font-size: 0.68rem; padding: 2px 8px; border-radius: 20px; font-weight: 700; }
 .badge-pass    { background: #14532d; color: #86efac; }
-.badge-partial { background: #422006; color: #fde68a; }
 .badge-fail    { background: #2d1515; color: #fca5a5; }
+.card-meta { font-size: 0.65rem; color: #4b5563; padding: 3px 12px; background: #111318; display: flex; gap: 8px; }
 .card-score { font-size: 0.7rem; color: #6b7280; padding: 4px 12px; background: #111318; }
 .card-conds { padding: 6px 0; }
 .cond-row { display: flex; align-items: center; gap: 6px; padding: 3px 12px; font-size: 0.7rem; }
@@ -131,6 +126,7 @@ header h1 { font-size: 1rem; font-weight: 700; color: #7dd3fc; }
 <header>
   <h1>🇺🇸 US Stock Screener</h1>
   <div class="header-right">
+    <div class="live-dot" id="liveDot" title="백그라운드 모니터링 중"></div>
     <span class="universe-info" id="universeInfo">종목 DB: 로딩 중...</span>
     <button class="btn btn-gray btn-sm" onclick="refreshUniverse()">갱신</button>
   </div>
@@ -145,24 +141,8 @@ header h1 { font-size: 1rem; font-weight: 700; color: #7dd3fc; }
       <div class="tab" id="tab-logic2" onclick="switchTab('logic2')">벌떡이</div>
     </div>
 
-    <!-- 스캔 모드 + 실행 -->
+    <!-- 즐겨찾기 -->
     <div class="section">
-      <div class="section-label">스캔 모드</div>
-      <div class="mode-toggle">
-        <button class="mode-btn active" id="mode-universe" onclick="setMode('universe')">전체 미장</button>
-        <button class="mode-btn" id="mode-watchlist" onclick="setMode('watchlist')">즐겨찾기</button>
-      </div>
-      <div class="scan-row">
-        <select class="logic-select" id="logicSelect">
-          <option value="logic1">급등이</option>
-          <option value="logic2">벌떡이</option>
-        </select>
-        <button class="btn btn-green" id="scanBtn" onclick="toggleScan()">▶ 스캔</button>
-      </div>
-    </div>
-
-    <!-- 즐겨찾기 (watchlist 모드일 때만 표시) -->
-    <div class="section" id="watchlistSection" style="display:none">
       <div class="section-label">즐겨찾기 종목</div>
       <div class="ticker-input-row">
         <input type="text" id="tickerInput" placeholder="AAPL, NVDA ..."
@@ -180,13 +160,11 @@ header h1 { font-size: 1rem; font-weight: 700; color: #7dd3fc; }
 
   <!-- 오른쪽 패널 -->
   <div class="right">
-
-    <!-- 진행 상태 -->
     <div class="scan-status" id="scanStatus">
       <div class="status-row">
-        <span class="status-label" id="statusLabel">대기 중</span>
-        <span class="status-msg" id="statusMsg">스캔을 실행하면 결과가 여기에 표시됩니다</span>
-        <span class="match-badge" id="matchBadge" style="display:none">0개 발견</span>
+        <span class="status-label" id="statusLabel">시작 중...</span>
+        <span class="status-msg" id="statusMsg">백그라운드 모니터링 자동 실행 중</span>
+        <span class="match-badge" id="matchBadge">0개</span>
       </div>
       <div class="progress-bar-wrap">
         <div class="progress-bar" id="progressBar"></div>
@@ -198,19 +176,17 @@ header h1 { font-size: 1rem; font-weight: 700; color: #7dd3fc; }
       </div>
     </div>
 
-    <!-- 결과 헤더 -->
     <div class="results-header">
       <span class="results-title">스캔 결과</span>
       <span class="results-meta" id="resultsMeta">-</span>
     </div>
 
-    <!-- 결과 카드들 -->
     <div class="results-body" id="resultsBody">
       <div class="empty-state" id="emptyState">
         <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3">
           <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
         </svg>
-        <p>전체 미장 또는 즐겨찾기 종목을 스캔하세요</p>
+        <p>백그라운드에서 자동 스캔 중... 조건 충족 종목이 나타나면 여기에 표시됩니다</p>
       </div>
     </div>
   </div>
@@ -218,19 +194,16 @@ header h1 { font-size: 1rem; font-weight: 700; color: #7dd3fc; }
 
 <script>
 let currentLogicId = 'logic1';
-let scanMode = 'universe';
 let logicData = {};
 let watchlist = [];
-let currentScanId = null;
-let currentEvtSource = null;
-let matchCount = 0;
-let scanRunning = false;
+let pollTimer = null;
 
 // ── 초기화 ──────────────────────────────────────────────────
 async function init() {
   await Promise.all([loadLogic('logic1'), loadLogic('logic2'), loadWatchlist()]);
   renderLogicEditor();
   loadUniverseInfo();
+  startPolling();
 }
 
 async function loadUniverseInfo() {
@@ -240,7 +213,7 @@ async function loadUniverseInfo() {
   if (data.cached) {
     el.innerHTML = `종목 DB: <b>${data.count.toLocaleString()}개</b> (${data.age_hours}h 전 갱신${data.stale ? ' ⚠️' : ''})`;
   } else {
-    el.innerHTML = '종목 DB: <b>미캐시</b> (첫 스캔 시 자동 다운로드)';
+    el.innerHTML = '종목 DB: <b>미캐시</b> (자동 다운로드 중)';
   }
 }
 
@@ -283,21 +256,12 @@ async function removeTicker(t) {
   await loadWatchlist();
 }
 
-// ── 모드/탭 ─────────────────────────────────────────────────
-function setMode(mode) {
-  scanMode = mode;
-  ['universe','watchlist'].forEach(m => {
-    document.getElementById(`mode-${m}`).classList.toggle('active', m === mode);
-  });
-  document.getElementById('watchlistSection').style.display = mode === 'watchlist' ? '' : 'none';
-}
-
+// ── 탭 ──────────────────────────────────────────────────────
 function switchTab(id) {
   currentLogicId = id;
   ['logic1','logic2'].forEach(l => {
     document.getElementById(`tab-${l}`).classList.toggle('active', l === id);
   });
-  document.getElementById('logicSelect').value = id;
   renderLogicEditor();
 }
 
@@ -385,173 +349,124 @@ function updateParam(condId, key, val, isArray, arrIdx) {
   else c[key] = Number.isInteger(c[key]) ? Math.round(num) : num;
 }
 
-// ── 스캔 ────────────────────────────────────────────────────
-async function toggleScan() {
-  if (scanRunning) {
-    stopScan();
-  } else {
-    startScan();
+// ── 폴링 (3초마다 서버 상태 조회) ─────────────────────────────
+function startPolling() {
+  pollResults();
+  pollTimer = setInterval(pollResults, 3000);
+}
+
+async function pollResults() {
+  try {
+    const res = await fetch('/api/results');
+    const data = await res.json();
+    updateUI(data);
+  } catch (e) {
+    document.getElementById('statusMsg').textContent = '서버 연결 실패...';
   }
 }
 
-async function startScan() {
-  const logicId = document.getElementById('logicSelect').value;
+function updateUI(data) {
+  const dot = document.getElementById('liveDot');
+  dot.style.background = data.running ? '#22c55e' : '#ef4444';
+  dot.style.boxShadow = data.running ? '0 0 6px #22c55e' : '0 0 6px #ef4444';
+  dot.title = data.running ? '모니터링 실행 중' : '모니터링 중지됨';
 
-  // 결과 초기화
-  matchCount = 0;
-  document.getElementById('resultsBody').innerHTML = '';
-  document.getElementById('emptyState') && document.getElementById('resultsBody').insertAdjacentHTML('beforeend',
-    '<div class="empty-state" id="emptyState"><p>스캔 중...</p></div>');
-  setPhase(0);
-  setProgress(0);
-  document.getElementById('matchBadge').style.display = '';
-  document.getElementById('matchBadge').textContent = '0개 발견';
+  document.getElementById('statusMsg').textContent = data.status_msg;
+  document.getElementById('progressBar').style.width = Math.min(Math.max(data.progress_pct, 0), 100) + '%';
 
-  // 스캔 시작 요청
-  const res = await fetch('/api/scan/start', {
-    method: 'POST', headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({logic_id: logicId, mode: scanMode})
+  const phase = data.phase;
+  const round = data.round;
+  document.getElementById('statusLabel').textContent =
+    phase === -1 ? `R#${round} 완료` :
+    phase === 0 ? (round > 0 ? `R#${round} 대기` : '시작 중...') :
+    phase === 1 ? `R#${round} 거래량 필터` :
+    phase === 2 ? `R#${round} 데이터 로드` :
+    phase === 3 ? `R#${round} 조건 평가` : '대기';
+
+  const dots = ['phase1dot','phase2dot','phase3dot'];
+  dots.forEach((id, i) => {
+    const d = document.getElementById(id);
+    const p = i + 1;
+    if (phase === -1) d.className = 'phase-dot done';
+    else if (p < phase) d.className = 'phase-dot done';
+    else if (p === phase) d.className = 'phase-dot active';
+    else d.className = 'phase-dot';
   });
-  const {scan_id} = await res.json();
-  currentScanId = scan_id;
 
-  // SSE 연결
-  currentEvtSource = new EventSource(`/api/scan/stream/${scan_id}`);
-  currentEvtSource.onmessage = (e) => handleMsg(JSON.parse(e.data));
-  currentEvtSource.onerror = () => { setScanRunning(false); };
+  const activeList = data.active || [];
+  const historyList = data.history || [];
 
-  setScanRunning(true);
+  document.getElementById('matchBadge').textContent = `${activeList.length}개`;
+  document.getElementById('resultsMeta').textContent =
+    `R#${round} | 충족 ${activeList.length}개 | 이력 ${historyList.length}개`;
+
+  renderResults(activeList, historyList);
 }
 
-function stopScan() {
-  if (currentScanId) {
-    fetch(`/api/scan/stop/${currentScanId}`, {method: 'POST'});
-  }
-  if (currentEvtSource) {
-    currentEvtSource.close();
-    currentEvtSource = null;
-  }
-  setScanRunning(false);
-  setStatusMsg('중지됨');
-}
-
-function setScanRunning(running) {
-  scanRunning = running;
-  const btn = document.getElementById('scanBtn');
-  btn.textContent = running ? '■ 중지' : '▶ 스캔';
-  btn.className = running ? 'btn btn-red' : 'btn btn-green';
-}
-
-function handleMsg(msg) {
-  const type = msg.type;
-
-  if (type === 'heartbeat') return;
-
-  if (type === 'status') {
-    setStatusMsg(msg.msg);
-  }
-  else if (type === 'progress') {
-    setStatusMsg(msg.msg);
-    const phase = msg.phase || 1;
-    const pct = msg.total > 0 ? (msg.scanned / msg.total * 100) : 0;
-
-    if (phase === 1) {
-      setPhase(1);
-      setProgress(pct * 0.3);  // 1단계: 0~30%
-      document.getElementById('resultsMeta').textContent =
-        `거래량 필터: ${(msg.scanned||0).toLocaleString()}/${(msg.total||0).toLocaleString()} | 후보 ${(msg.candidates||0).toLocaleString()}개`;
-    } else if (phase === 2) {
-      setPhase(2);
-      setProgress(30 + pct * 0.3);  // 2단계: 30~60%
-    } else if (phase === 3) {
-      setPhase(3);
-      setProgress(60 + pct * 0.4);  // 3단계: 60~100%
-      const matches = msg.matches || matchCount;
-      document.getElementById('resultsMeta').textContent =
-        `${(msg.scanned||0).toLocaleString()}/${(msg.total||0).toLocaleString()} 평가 | ${matches}개 발견`;
-    }
-  }
-  else if (type === 'match') {
-    matchCount++;
-    document.getElementById('matchBadge').textContent = `${matchCount}개 발견`;
-    const empty = document.getElementById('emptyState');
-    if (empty) empty.remove();
-    appendResultCard(msg.result);
-  }
-  else if (type === 'warn') {
-    console.warn(msg.msg);
-  }
-  else if (type === 'done') {
-    setProgress(100);
-    setScanRunning(false);
-    setPhase(-1); // 완료
-    const label = msg.cancelled ? '중지됨' : '완료';
-    setStatusMsg(`${label} — ${matchCount}개 발견`);
-    document.getElementById('resultsMeta').textContent =
-      `총 ${(msg.total_scanned||0).toLocaleString()}개 평가 | ${matchCount}개 발견 | ${new Date().toLocaleTimeString()}`;
-    if (matchCount === 0) {
-      document.getElementById('resultsBody').innerHTML =
-        '<div class="empty-state"><p>조건에 맞는 종목이 없습니다</p></div>';
-    }
-  }
-  else if (type === 'error') {
-    setScanRunning(false);
-    setStatusMsg('오류: ' + msg.msg);
-    showToast('오류: ' + msg.msg, 'error');
-  }
-}
-
-function appendResultCard(r) {
+// ── 결과 렌더링 ──────────────────────────────────────────────
+function renderResults(activeList, historyList) {
   const body = document.getElementById('resultsBody');
-  const div = document.createElement('div');
-  div.className = `result-card ${r.all_pass ? 'pass' : ''}`;
-  div.innerHTML = `
+
+  if (activeList.length === 0 && historyList.length === 0) {
+    body.innerHTML = `<div class="empty-state">
+      <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3">
+        <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+      </svg>
+      <p>백그라운드에서 자동 스캔 중... 조건 충족 종목이 나타나면 여기에 표시됩니다</p>
+    </div>`;
+    return;
+  }
+
+  let html = '';
+
+  if (activeList.length > 0) {
+    html += `<div class="results-section">
+      <div class="section-divider"><span>조건 충족 중 (${activeList.length})</span></div>
+      <div class="card-grid">${activeList.map(d =>
+        buildCard(d.result, 'active', d.found_at, d.updated_at)
+      ).join('')}</div>
+    </div>`;
+  }
+
+  if (historyList.length > 0) {
+    html += `<div class="results-section">
+      <div class="section-divider"><span>이전 발견 이력 (${historyList.length})</span></div>
+      <div class="card-grid">${historyList.map(d =>
+        buildCard(d.result, 'history', d.found_at, d.exited_at)
+      ).join('')}</div>
+    </div>`;
+  }
+
+  body.innerHTML = html;
+}
+
+function buildCard(r, cls, dateA, dateB) {
+  const isActive = cls === 'active';
+  const metaHtml = isActive
+    ? `<span>발견: ${dateA}</span><span>갱신: ${dateB || dateA}</span>`
+    : `<span>발견: ${dateA}</span><span>이탈: ${dateB}</span>`;
+
+  return `<div class="result-card ${cls}">
     <div class="card-head">
       <span class="card-ticker">${r.ticker}</span>
-      <span class="card-badge ${r.all_pass ? 'badge-pass' : 'badge-fail'}">
-        ${r.all_pass ? '✓ 통과' : `${r.pass_count}/${r.total_count}`}
+      <span class="card-badge ${isActive ? 'badge-pass' : 'badge-fail'}">
+        ${isActive ? '✓ 충족' : '이탈'}
       </span>
     </div>
+    <div class="card-meta">${metaHtml}</div>
     <div class="card-score">${r.pass_count} / ${r.total_count} 조건 충족</div>
     <div class="card-conds">
       ${r.conditions.map(c => {
-        let cls='ci-skip', icon='−';
-        if (c.pass===true){cls='ci-pass';icon='✓';}
-        else if (c.pass===false){cls='ci-fail';icon='✗';}
+        let ci='ci-skip', icon='−';
+        if (c.pass===true){ci='ci-pass';icon='✓';}
+        else if (c.pass===false){ci='ci-fail';icon='✗';}
         return `<div class="cond-row">
-          <div class="ci ${cls}">${icon}</div>
+          <div class="ci ${ci}">${icon}</div>
           <div class="ct">${c.label}</div>
         </div>`;
       }).join('')}
-    </div>`;
-  body.appendChild(div);
-}
-
-// ── 진행 UI 헬퍼 ─────────────────────────────────────────────
-function setProgress(pct) {
-  document.getElementById('progressBar').style.width = Math.min(pct, 100) + '%';
-}
-
-function setPhase(phase) {
-  // phase: 1=거래량필터, 2=데이터로드, 3=조건평가, -1=완료, 0=초기
-  const dots = ['phase1dot','phase2dot','phase3dot'];
-  dots.forEach((id, i) => {
-    const dot = document.getElementById(id);
-    const p = i + 1;
-    if (phase === -1) dot.className = 'phase-dot done';
-    else if (p < phase) dot.className = 'phase-dot done';
-    else if (p === phase) dot.className = 'phase-dot active';
-    else dot.className = 'phase-dot';
-  });
-  document.getElementById('statusLabel').textContent =
-    phase === 0 ? '대기' :
-    phase === 1 ? '1단계: 거래량 필터' :
-    phase === 2 ? '2단계: 데이터 로드' :
-    phase === 3 ? '3단계: 조건 평가' : '완료';
-}
-
-function setStatusMsg(msg) {
-  document.getElementById('statusMsg').textContent = msg;
+    </div>
+  </div>`;
 }
 
 // ── 토스트 ────────────────────────────────────────────────────

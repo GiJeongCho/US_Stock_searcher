@@ -2,9 +2,12 @@
 yfinance 데이터 fetcher - 캐싱 + 속도 제한
 """
 import time
+import logging
 import threading
 import yfinance as yf
 import pandas as pd
+
+logging.getLogger("yfinance").setLevel(logging.CRITICAL)
 
 # 캐시: { (ticker, interval): (timestamp, DataFrame) }
 _cache: dict = {}
@@ -20,11 +23,11 @@ CACHE_TTL = {
     "1d":  600,
 }
 
-# 인터벌별 필요 기간
+# 인터벌별 필요 기간 (Yahoo 제한: 1m=7d, 5m/15m=59d, 60m/1h=730d)
 PERIOD_MAP = {
-    "1m":  "7d",
-    "5m":  "60d",
-    "15m": "60d",
+    "1m":  "5d",
+    "5m":  "55d",
+    "15m": "55d",
     "60m": "60d",
     "1h":  "60d",
     "1d":  "1y",
