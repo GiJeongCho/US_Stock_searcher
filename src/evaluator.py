@@ -91,16 +91,34 @@ def _eval_condition(cond: dict, ticker: str, df_cache: dict, info: dict) -> dict
     return {"id": cid, "label": label, "pass": result, "reason": reason}
 
 
+_INFO_COND_TYPES = {"market_cap_min", "float_ratio_min"}
+
+
 def evaluate(ticker: str, logic: dict) -> dict:
     """
     ticker 에 대해 logic 전체 조건 평가
-    반환: {ticker, logic_name, conditions: [...], all_pass: bool}
+    OHLCV 조건을 먼저 평가하고, 모두 통과한 경우에만 get_info() 호출 (API 절약)
     """
     df_cache: dict = {}
-    info = get_info(ticker)
+    conditions = logic.get("conditions", [])
+
+    ohlcv_conds = [c for c in conditions if c["type"] not in _INFO_COND_TYPES]
+    info_conds = [c for c in conditions if c["type"] in _INFO_COND_TYPES]
 
     results = []
-    for cond in logic.get("conditions", []):
+    for cond in ohlcv_conds:
+        r = _eval_condition(cond, ticker, df_cache, {})
+        results.append(r)
+
+    ohlcv_enabled = [r for r in results if r["pass"] is not None]
+    ohlcv_all_pass = all(r["pass"] for r in ohlcv_enabled) if ohlcv_enabled else True
+
+    if ohlcv_all_pass and any(c.get("enabled", True) for c in info_conds):
+        info = get_info(ticker)
+    else:
+        info = {}
+
+    for cond in info_conds:
         r = _eval_condition(cond, ticker, df_cache, info)
         results.append(r)
 

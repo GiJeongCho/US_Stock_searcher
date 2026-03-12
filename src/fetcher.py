@@ -35,7 +35,9 @@ PERIOD_MAP = {
 
 # API 호출 간격 제어 (마지막 호출 시간)
 _last_call_time = 0
-_MIN_CALL_INTERVAL = 0.5  # 초
+_MIN_CALL_INTERVAL = 1.5  # 초 (Yahoo Rate Limit 방지)
+_MAX_RETRIES = 3
+_BACKOFF_BASE = 10  # 초 (Rate Limit 시 대기 기본값)
 
 
 def _rate_limit():
@@ -57,32 +59,41 @@ def get_ohlcv(ticker: str, interval: str) -> pd.DataFrame | None:
             if time.time() - ts < ttl:
                 return df
 
-    _rate_limit()
-    try:
-        period = PERIOD_MAP.get(interval, "60d")
-        df = yf.download(
-            ticker,
-            period=period,
-            interval=interval,
-            progress=False,
-            auto_adjust=True,
-        )
-        if df.empty:
-            return None
-        # 컬럼이 멀티인덱스인 경우 평탄화
-        if isinstance(df.columns, pd.MultiIndex):
-            df.columns = df.columns.get_level_values(0)
-        df = df.dropna()
-        with _lock:
-            _cache[key] = (time.time(), df)
-        return df
-    except Exception as e:
-        print(f"[fetcher] {ticker} {interval} 오류: {e}")
-        return None
+    for attempt in range(_MAX_RETRIES):
+        _rate_limit()
+        try:
+            period = PERIOD_MAP.get(interval, "60d")
+            df = yf.download(
+                ticker,
+                period=period,
+                interval=interval,
+                progress=False,
+                auto_adjust=True,
+            )
+            if df.empty:
+                return None
+            if isinstance(df.columns, pd.MultiIndex):
+                df.columns = df.columns.get_level_values(0)
+            df = df.dropna()
+            with _lock:
+                _cache[key] = (time.time(), df)
+            return df
+        except Exception as e:
+            err_msg = str(e).lower()
+            if "too many requests" in err_msg or "rate limit" in err_msg:
+                wait = _BACKOFF_BASE * (2 ** attempt)
+                logging.warning(f"[fetcher] {ticker} {interval} Rate Limited → {wait}초 대기 ({attempt+1}/{_MAX_RETRIES})")
+                time.sleep(wait)
+            else:
+                logging.warning(f"[fetcher] {ticker} {interval} 오류: {e}")
+                return None
+
+    logging.warning(f"[fetcher] {ticker} {interval} 최종 실패 (Rate Limit)")
+    return None
 
 
 def get_info(ticker: str) -> dict:
-    """종목 기본정보 (시총, 유통주식수 등) - TTL 10분"""
+    """종목 기본정보 (시총, 유통주식수 등) - TTL 10분, Rate Limit 시 자동 백오프"""
     key = (ticker.upper(), "info")
     ttl = 600
 
@@ -92,16 +103,26 @@ def get_info(ticker: str) -> dict:
             if time.time() - ts < ttl:
                 return info
 
-    _rate_limit()
-    try:
-        t = yf.Ticker(ticker)
-        info = t.info or {}
-        with _lock:
-            _cache[key] = (time.time(), info)
-        return info
-    except Exception as e:
-        print(f"[fetcher] {ticker} info 오류: {e}")
-        return {}
+    for attempt in range(_MAX_RETRIES):
+        _rate_limit()
+        try:
+            t = yf.Ticker(ticker)
+            info = t.info or {}
+            with _lock:
+                _cache[key] = (time.time(), info)
+            return info
+        except Exception as e:
+            err_msg = str(e).lower()
+            if "too many requests" in err_msg or "rate limit" in err_msg:
+                wait = _BACKOFF_BASE * (2 ** attempt)
+                logging.warning(f"[fetcher] {ticker} Rate Limited → {wait}초 대기 후 재시도 ({attempt+1}/{_MAX_RETRIES})")
+                time.sleep(wait)
+            else:
+                logging.warning(f"[fetcher] {ticker} info 오류: {e}")
+                return {}
+
+    logging.warning(f"[fetcher] {ticker} info 최종 실패 (Rate Limit)")
+    return {}
 
 
 def clear_cache(ticker: str | None = None):

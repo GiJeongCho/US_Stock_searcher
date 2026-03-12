@@ -37,7 +37,7 @@ from src.evaluator import evaluate
 
 DAILY_BATCH = 100
 INTRA_BATCH = 50
-MIN_CALL_INTERVAL = 0.3
+MIN_CALL_INTERVAL = 1.0
 ROUND_INTERVAL = 60  # 라운드 간 대기(초)
 
 
