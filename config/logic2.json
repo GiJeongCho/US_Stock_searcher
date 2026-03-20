@@ -1,107 +1,131 @@
 {
-  "name": "벌떡이",
-  "description": "단기 이평 정배열 + 엔벨로프 돌파 (1분/5분/15분)",
   "conditions": [
     {
+      "enabled": true,
       "id": "volume_daily",
-      "type": "volume_range",
-      "label": "일 거래량 필터",
       "interval": "1d",
-      "min": 300000,
+      "label": "일 거래량 필터",
       "max": 999999999,
-      "enabled": true
+      "min": 300000,
+      "type": "volume_range"
     },
     {
+      "enabled": true,
       "id": "market_cap",
-      "type": "market_cap_min",
       "label": "시가총액 최소 (USD)",
       "min_usd": 22000000,
-      "enabled": true
+      "type": "market_cap_min"
     },
     {
+      "enabled": true,
       "id": "ma_align_1m_1",
-      "type": "ma_alignment",
+      "interval": "1m",
       "label": "1분 이평배열 (MA5 >= MA60 >= MA112)",
-      "interval": "1m",
-      "periods": [5, 60, 112],
-      "enabled": true
+      "periods": [
+        5,
+        60,
+        112
+      ],
+      "type": "ma_alignment"
     },
     {
+      "enabled": true,
       "id": "ma_align_1m_2",
-      "type": "ma_alignment",
+      "interval": "1m",
       "label": "1분 이평배열 (MA5 >= MA112 >= MA224)",
-      "interval": "1m",
-      "periods": [5, 112, 224],
-      "enabled": true
+      "periods": [
+        5,
+        112,
+        224
+      ],
+      "type": "ma_alignment"
     },
     {
+      "enabled": true,
       "id": "ma_align_5m_1",
-      "type": "ma_alignment",
+      "interval": "5m",
       "label": "5분 이평배열 (MA5 >= MA20 >= MA60)",
-      "interval": "5m",
-      "periods": [5, 20, 60],
-      "enabled": true
+      "periods": [
+        5,
+        20,
+        60
+      ],
+      "type": "ma_alignment"
     },
     {
+      "enabled": true,
       "id": "ma_align_5m_2",
-      "type": "ma_alignment",
+      "interval": "5m",
       "label": "5분 이평배열 (MA60 >= MA100 >= MA200)",
-      "interval": "5m",
-      "periods": [60, 100, 200],
-      "enabled": true
+      "periods": [
+        60,
+        100,
+        200
+      ],
+      "type": "ma_alignment"
     },
     {
+      "enabled": true,
+      "fast": 5,
       "id": "ma_gap_5m_224",
-      "type": "ma_gap",
+      "interval": "5m",
       "label": "5분 이평이격도 MA5-MA224 10% 이내",
-      "interval": "5m",
-      "fast": 5,
       "slow": 224,
-      "threshold_pct": 10.0,
-      "enabled": true
+      "threshold_pct": 10,
+      "type": "ma_gap"
     },
     {
+      "enabled": true,
       "id": "ma_align_15m_1",
-      "type": "ma_alignment",
+      "interval": "15m",
       "label": "15분 이평배열 (MA5 >= MA20 >= MA60)",
-      "interval": "15m",
-      "periods": [5, 20, 60],
-      "enabled": true
+      "periods": [
+        5,
+        20,
+        60
+      ],
+      "type": "ma_alignment"
     },
     {
+      "enabled": true,
       "id": "ma_align_15m_2",
-      "type": "ma_alignment",
-      "label": "15분 이평배열 (MA20 >= MA60 >= MA200)",
       "interval": "15m",
-      "periods": [20, 60, 200],
-      "enabled": true
+      "label": "15분 이평배열 (MA20 >= MA60 >= MA200)",
+      "periods": [
+        20,
+        60,
+        200
+      ],
+      "type": "ma_alignment"
     },
     {
-      "id": "ma_compare_1d",
-      "type": "ma_compare",
-      "label": "일봉 MA5 >= MA10",
-      "interval": "1d",
+      "enabled": true,
       "fast": 5,
+      "id": "ma_compare_1d",
+      "interval": "1d",
+      "label": "일봉 MA5 >= MA10",
       "slow": 10,
-      "enabled": true
+      "type": "ma_compare"
     },
     {
+      "enabled": true,
       "id": "envelope_breakout_5m",
-      "type": "envelope_breakout",
-      "label": "5분 엔벨로프 상향돌파 (12, 3.0%)",
       "interval": "5m",
+      "label": "5분 엔벨로프 상향돌파 (12, 3.0%)",
+      "pct": 3,
       "period": 12,
-      "pct": 3.0,
-      "enabled": true
+      "type": "envelope_breakout"
     },
     {
+      "enabled": true,
       "id": "envelope_breakout_1m",
-      "type": "envelope_breakout",
-      "label": "1분 엔벨로프 상향돌파 (12, 2.0%)",
       "interval": "1m",
+      "label": "1분 엔벨로프 상향돌파 (12, 2.0%)",
+      "pct": 2,
       "period": 12,
-      "pct": 2.0,
-      "enabled": true
+      "type": "envelope_breakout"
     }
-  ]
+  ],
+  "description": "단기 이평 정배열 + 엔벨로프 돌파 (1분/5분/15분)",
+  "name": "벌떡이"
 }

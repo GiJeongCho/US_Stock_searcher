@@ -68,7 +68,9 @@ def _batch_daily_volume_filter(
                     interval="1d",
                     progress=False,
                     auto_adjust=True,
+                    prepost=True,
                     group_by="ticker",
+                    threads=False,
                 )
             for t in batch:
                 vol = _extract_volume(df, t, len(batch))
@@ -142,7 +144,9 @@ def _preload_timeframes(
                         interval=interval,
                         progress=False,
                         auto_adjust=True,
+                        prepost=True,
                         group_by="ticker",
+                        threads=False,
                     )
                 now = time.time()
                 for t in batch:

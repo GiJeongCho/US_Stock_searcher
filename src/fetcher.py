@@ -69,6 +69,7 @@ def get_ohlcv(ticker: str, interval: str) -> pd.DataFrame | None:
                 interval=interval,
                 progress=False,
                 auto_adjust=True,
+                prepost=True,
             )
             if df.empty:
                 return None

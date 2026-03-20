@@ -6,6 +6,7 @@ __pycache__/
 dist/
 build/
 *.egg
+*nohup.out
 
 # Virtual environment
 venv/

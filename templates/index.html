@@ -352,7 +352,7 @@ function updateParam(condId, key, val, isArray, arrIdx) {
 // ── 폴링 (3초마다 서버 상태 조회) ─────────────────────────────
 function startPolling() {
   pollResults();
-  pollTimer = setInterval(pollResults, 3000);
+  pollTimer = setInterval(pollResults, 5000);
 }
 
 async function pollResults() {
