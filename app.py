@@ -22,7 +22,7 @@ _scan_state = {
     "phase": 0,
     "status_msg": "서버 시작 중...",
     "progress_pct": 0,
-    "logic_id": "logic1",
+    "logic_id": "logic2",
     # ticker -> {result, round, found_at(ISO), updated_at(ISO)}
     "active": {},
     # ticker -> {result, round, found_at(ISO), exited_at(ISO)}

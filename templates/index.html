@@ -112,8 +112,13 @@ header h1 { font-size: 1rem; font-weight: 700; color: #7dd3fc; }
 .result-card.active { border-color: #166534; }
 .result-card.history { border-color: #374151; opacity: 0.5; }
 .card-head { padding: 9px 12px; background: #1a1d27; display: flex; justify-content: space-between; align-items: center; }
+.card-head-left { display: flex; align-items: center; gap: 6px; }
 .card-ticker { font-size: 1rem; font-weight: 800; cursor: pointer; transition: color .15s; }
 .card-ticker:hover { color: #7dd3fc; text-decoration: underline; }
+.card-fav { background: none; border: none; cursor: pointer; font-size: 0.9rem; padding: 0 2px; transition: .15s; line-height: 1; }
+.card-fav.in-wl { color: #fbbf24; }
+.card-fav:not(.in-wl) { color: #4b5563; }
+.card-fav:hover { transform: scale(1.2); }
 .card-badge { font-size: 0.68rem; padding: 2px 8px; border-radius: 20px; font-weight: 700; }
 .badge-pass    { background: #14532d; color: #86efac; }
 .badge-fail    { background: #2d1515; color: #fca5a5; }
@@ -151,8 +156,8 @@ header h1 { font-size: 1rem; font-weight: 700; color: #7dd3fc; }
   <!-- 왼쪽 패널 -->
   <div class="left">
     <div class="tab-bar">
-      <div class="tab active" id="tab-logic1" onclick="switchTab('logic1')">급등이</div>
-      <div class="tab" id="tab-logic2" onclick="switchTab('logic2')">벌떡이</div>
+      <div class="tab" id="tab-logic1" onclick="switchTab('logic1')">급등이</div>
+      <div class="tab active" id="tab-logic2" onclick="switchTab('logic2')">벌떡이</div>
     </div>
 
     <!-- 즐겨찾기 -->
@@ -160,6 +165,7 @@ header h1 { font-size: 1rem; font-weight: 700; color: #7dd3fc; }
       <div class="section-label">즐겨찾기 종목</div>
       <div class="ticker-input-row">
         <input type="text" id="tickerInput" placeholder="AAPL, NVDA ..."
+               style="text-transform:uppercase"
                onkeydown="if(event.key==='Enter') addTicker()">
         <button class="btn btn-blue btn-sm" onclick="addTicker()">추가</button>
       </div>
@@ -177,9 +183,13 @@ header h1 { font-size: 1rem; font-weight: 700; color: #7dd3fc; }
     <!-- TradingView 차트 (결과 위) -->
     <div class="chart-wrap hidden" id="chartWrap">
       <div class="chart-header">
-        <span class="chart-ticker-name" id="chartTickerName">-</span>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <span class="chart-ticker-name" id="chartTickerName">-</span>
+          <button class="card-fav" id="chartFavBtn" onclick="toggleFav(currentChartTicker)" title="즐겨찾기">☆</button>
+        </div>
         <div style="display:flex;align-items:center;gap:6px;">
           <input type="text" class="chart-search-input" id="chartSearchInput" placeholder="종목 검색..."
+                 style="text-transform:uppercase"
                  onkeydown="if(event.key==='Enter') openChart(this.value.toUpperCase().trim())">
           <button class="chart-close-btn" onclick="closeChart()" title="차트 닫기">✕</button>
         </div>
@@ -220,7 +230,7 @@ header h1 { font-size: 1rem; font-weight: 700; color: #7dd3fc; }
 </div>
 
 <script>
-let currentLogicId = 'logic1';
+let currentLogicId = 'logic2';
 let logicData = {};
 let watchlist = [];
 let pollTimer = null;
@@ -280,6 +290,19 @@ async function addTicker() {
 
 async function removeTicker(t) {
   await fetch(`/api/watchlist/${t}`, {method: 'DELETE'});
+  await loadWatchlist();
+}
+
+async function toggleFav(ticker) {
+  ticker = ticker.toUpperCase();
+  if (watchlist.includes(ticker)) {
+    await fetch(`/api/watchlist/${ticker}`, {method: 'DELETE'});
+  } else {
+    await fetch('/api/watchlist', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ticker})
+    });
+  }
   await loadWatchlist();
 }
 
@@ -477,9 +500,13 @@ function buildCard(r, cls, dateA, dateB) {
     ? `<span>발견: ${dateA}</span><span>갱신: ${dateB || dateA}</span>`
     : `<span>발견: ${dateA}</span><span>이탈: ${dateB}</span>`;
 
+  const inWl = watchlist.includes(r.ticker);
   return `<div class="result-card ${cls}">
     <div class="card-head">
-      <span class="card-ticker" onclick="openChart('${r.ticker}')">${r.ticker}</span>
+      <div class="card-head-left">
+        <span class="card-ticker" onclick="openChart('${r.ticker}')">${r.ticker}</span>
+        <button class="card-fav ${inWl ? 'in-wl' : ''}" onclick="toggleFav('${r.ticker}')" title="${inWl ? '즐겨찾기 해제' : '즐겨찾기 추가'}">${inWl ? '★' : '☆'}</button>
+      </div>
       <span class="card-badge ${isActive ? 'badge-pass' : 'badge-fail'}">
         ${isActive ? '✓ 충족' : '이탈'}
       </span>
@@ -511,6 +538,7 @@ function openChart(ticker) {
   document.getElementById('chartWrap').classList.remove('hidden');
   document.getElementById('chartTickerName').textContent = ticker;
   document.getElementById('chartSearchInput').value = '';
+  updateChartFavBtn();
 
   const container = document.getElementById('chartContainer');
   container.innerHTML = '';
