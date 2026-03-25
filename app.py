@@ -148,6 +148,19 @@ def get_results():
     })
 
 
+@app.route("/api/switch_logic", methods=["POST"])
+def switch_logic():
+    logic_id = (request.get_json() or {}).get("logic_id", "")
+    if logic_id not in ("logic1", "logic2"):
+        return jsonify({"error": "invalid logic_id"}), 400
+    with _state_lock:
+        if _scan_state["logic_id"] != logic_id:
+            _scan_state["logic_id"] = logic_id
+            _scan_state["active"] = {}
+            _scan_state["history"] = {}
+    return jsonify({"ok": True, "logic_id": logic_id})
+
+
 # ── 백그라운드 스캐너 ────────────────────────────────────────
 
 _bg_stop = threading.Event()

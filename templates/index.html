@@ -42,7 +42,8 @@ header h1 { font-size: 1rem; font-weight: 700; color: #7dd3fc; }
 .ticker-input-row input:focus { border-color: #7dd3fc; }
 .ticker-list { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; min-height: 24px; }
 .ticker-tag { display: flex; align-items: center; gap: 4px; background: #1e2130; border: 1px solid #2d3148; border-radius: 4px; padding: 3px 8px; font-size: 0.75rem; }
-.ticker-tag span { color: #7dd3fc; font-weight: 700; }
+.ticker-tag span { color: #7dd3fc; font-weight: 700; cursor: pointer; transition: opacity .15s; }
+.ticker-tag span:hover { opacity: .7; }
 .ticker-tag button { background: none; border: none; color: #4b5563; cursor: pointer; font-size: 1rem; line-height: 1; }
 .ticker-tag button:hover { color: #f87171; }
 
@@ -68,7 +69,19 @@ header h1 { font-size: 1rem; font-weight: 700; color: #7dd3fc; }
 /* ─── 오른쪽 패널 ─── */
 .right { display: flex; flex-direction: column; overflow: hidden; }
 
-.scan-status { background: #13161f; border-bottom: 1px solid #2d3148; padding: 10px 20px; }
+/* 차트 영역 (스캔 결과 위) */
+.chart-wrap { height: 420px; border-bottom: 1px solid #2d3148; display: flex; flex-direction: column; flex-shrink: 0; }
+.chart-wrap.hidden { display: none; }
+.chart-header { display: flex; align-items: center; justify-content: space-between; padding: 5px 14px; background: #1a1d27; border-bottom: 1px solid #2d3148; flex-shrink: 0; }
+.chart-ticker-name { font-size: 0.9rem; font-weight: 800; color: #7dd3fc; }
+.chart-close-btn { background: none; border: none; color: #6b7280; cursor: pointer; font-size: 1.1rem; padding: 2px 6px; border-radius: 4px; }
+.chart-close-btn:hover { color: #f87171; background: #1e2130; }
+.chart-container { flex: 1; min-height: 0; }
+.chart-search-input { background: #1e2130; border: 1px solid #374151; border-radius: 5px; padding: 4px 8px; color: #e2e8f0; font-size: 0.78rem; outline: none; width: 130px; }
+.chart-search-input:focus { border-color: #7dd3fc; }
+
+/* 스캔 상태 */
+.scan-status { background: #13161f; border-bottom: 1px solid #2d3148; padding: 10px 20px; flex-shrink: 0; }
 .status-row { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
 .status-label { font-size: 0.78rem; font-weight: 600; }
 .status-msg { font-size: 0.73rem; color: #9ca3af; flex: 1; }
@@ -83,11 +96,11 @@ header h1 { font-size: 1rem; font-weight: 700; color: #7dd3fc; }
 .phase-dot.active { background: #22c55e; box-shadow: 0 0 5px #22c55e; }
 .phase-dot.done { background: #3b82f6; }
 
-.results-header { padding: 10px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #1e2130; }
+.results-header { padding: 10px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #1e2130; flex-shrink: 0; }
 .results-title { font-size: 0.8rem; font-weight: 600; }
 .results-meta { font-size: 0.7rem; color: #6b7280; }
 
-.results-body { flex: 1; overflow-y: auto; display: flex; flex-direction: column; }
+.results-body { flex: 1; overflow-y: auto; display: flex; flex-direction: column; min-height: 0; }
 .results-section { padding: 0 14px 10px; }
 .results-section:first-child { padding-top: 14px; }
 .section-divider { display: flex; align-items: center; gap: 10px; padding: 6px 14px; }
@@ -99,7 +112,8 @@ header h1 { font-size: 1rem; font-weight: 700; color: #7dd3fc; }
 .result-card.active { border-color: #166534; }
 .result-card.history { border-color: #374151; opacity: 0.5; }
 .card-head { padding: 9px 12px; background: #1a1d27; display: flex; justify-content: space-between; align-items: center; }
-.card-ticker { font-size: 1rem; font-weight: 800; }
+.card-ticker { font-size: 1rem; font-weight: 800; cursor: pointer; transition: color .15s; }
+.card-ticker:hover { color: #7dd3fc; text-decoration: underline; }
 .card-badge { font-size: 0.68rem; padding: 2px 8px; border-radius: 20px; font-weight: 700; }
 .badge-pass    { background: #14532d; color: #86efac; }
 .badge-fail    { background: #2d1515; color: #fca5a5; }
@@ -124,7 +138,7 @@ header h1 { font-size: 1rem; font-weight: 700; color: #7dd3fc; }
 <body>
 
 <header>
-  <h1>🇺🇸 US Stock Screener</h1>
+  <h1>US Stock Screener</h1>
   <div class="header-right">
     <div class="live-dot" id="liveDot" title="백그라운드 모니터링 중"></div>
     <span class="universe-info" id="universeInfo">종목 DB: 로딩 중...</span>
@@ -160,6 +174,19 @@ header h1 { font-size: 1rem; font-weight: 700; color: #7dd3fc; }
 
   <!-- 오른쪽 패널 -->
   <div class="right">
+    <!-- TradingView 차트 (결과 위) -->
+    <div class="chart-wrap hidden" id="chartWrap">
+      <div class="chart-header">
+        <span class="chart-ticker-name" id="chartTickerName">-</span>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <input type="text" class="chart-search-input" id="chartSearchInput" placeholder="종목 검색..."
+                 onkeydown="if(event.key==='Enter') openChart(this.value.toUpperCase().trim())">
+          <button class="chart-close-btn" onclick="closeChart()" title="차트 닫기">✕</button>
+        </div>
+      </div>
+      <div class="chart-container" id="chartContainer"></div>
+    </div>
+
     <div class="scan-status" id="scanStatus">
       <div class="status-row">
         <span class="status-label" id="statusLabel">시작 중...</span>
@@ -233,7 +260,7 @@ async function loadWatchlist() {
 function renderWatchlist() {
   document.getElementById('tickerList').innerHTML = watchlist.map(t => `
     <div class="ticker-tag">
-      <span>${t}</span>
+      <span onclick="openChart('${t}')">${t}</span>
       <button onclick="removeTicker('${t}')">×</button>
     </div>`).join('');
 }
@@ -256,13 +283,17 @@ async function removeTicker(t) {
   await loadWatchlist();
 }
 
-// ── 탭 ──────────────────────────────────────────────────────
-function switchTab(id) {
+// ── 탭 (서버 로직도 전환) ────────────────────────────────────
+async function switchTab(id) {
   currentLogicId = id;
   ['logic1','logic2'].forEach(l => {
     document.getElementById(`tab-${l}`).classList.toggle('active', l === id);
   });
   renderLogicEditor();
+  await fetch('/api/switch_logic', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({logic_id: id})
+  });
 }
 
 // ── 로직 로드/저장 ────────────────────────────────────────────
@@ -349,7 +380,7 @@ function updateParam(condId, key, val, isArray, arrIdx) {
   else c[key] = Number.isInteger(c[key]) ? Math.round(num) : num;
 }
 
-// ── 폴링 (3초마다 서버 상태 조회) ─────────────────────────────
+// ── 폴링 ────────────────────────────────────────────────────
 function startPolling() {
   pollResults();
   pollTimer = setInterval(pollResults, 5000);
@@ -448,7 +479,7 @@ function buildCard(r, cls, dateA, dateB) {
 
   return `<div class="result-card ${cls}">
     <div class="card-head">
-      <span class="card-ticker">${r.ticker}</span>
+      <span class="card-ticker" onclick="openChart('${r.ticker}')">${r.ticker}</span>
       <span class="card-badge ${isActive ? 'badge-pass' : 'badge-fail'}">
         ${isActive ? '✓ 충족' : '이탈'}
       </span>
@@ -467,6 +498,56 @@ function buildCard(r, cls, dateA, dateB) {
       }).join('')}
     </div>
   </div>`;
+}
+
+// ── TradingView 차트 ──────────────────────────────────────────
+let currentChartTicker = '';
+
+function openChart(ticker) {
+  if (!ticker) return;
+  ticker = ticker.toUpperCase().trim();
+  currentChartTicker = ticker;
+
+  document.getElementById('chartWrap').classList.remove('hidden');
+  document.getElementById('chartTickerName').textContent = ticker;
+  document.getElementById('chartSearchInput').value = '';
+
+  const container = document.getElementById('chartContainer');
+  container.innerHTML = '';
+
+  const widget = document.createElement('div');
+  widget.className = 'tradingview-widget-container';
+  widget.style.cssText = 'height:100%;width:100%;';
+  widget.innerHTML = '<div class="tradingview-widget-container__widget" style="height:100%;width:100%;"></div>';
+
+  const script = document.createElement('script');
+  script.type = 'text/javascript';
+  script.src = 'https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js';
+  script.async = true;
+  script.textContent = JSON.stringify({
+    autosize: true,
+    symbol: ticker,
+    interval: "D",
+    timezone: "America/New_York",
+    theme: "dark",
+    style: "1",
+    locale: "kr",
+    hide_top_toolbar: false,
+    hide_legend: false,
+    allow_symbol_change: true,
+    save_image: false,
+    calendar: false,
+    support_host: "https://www.tradingview.com"
+  });
+
+  widget.appendChild(script);
+  container.appendChild(widget);
+}
+
+function closeChart() {
+  document.getElementById('chartWrap').classList.add('hidden');
+  document.getElementById('chartContainer').innerHTML = '';
+  currentChartTicker = '';
 }
 
 // ── 토스트 ────────────────────────────────────────────────────
