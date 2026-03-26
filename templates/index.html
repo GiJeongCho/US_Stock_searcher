@@ -69,8 +69,8 @@ header h1 { font-size: 1rem; font-weight: 700; color: #7dd3fc; }
 /* ─── 오른쪽 패널 ─── */
 .right { display: flex; flex-direction: column; overflow: hidden; }
 
-/* 차트 영역 (스캔 결과 위) */
-.chart-wrap { height: 420px; border-bottom: 1px solid #2d3148; display: flex; flex-direction: column; flex-shrink: 0; }
+/* 차트 영역 (스캔 결과 위, 화면 45% 사용) */
+.chart-wrap { flex: 0 0 45%; max-height: 45vh; border-bottom: 1px solid #2d3148; display: flex; flex-direction: column; }
 .chart-wrap.hidden { display: none; }
 .chart-header { display: flex; align-items: center; justify-content: space-between; padding: 5px 14px; background: #1a1d27; border-bottom: 1px solid #2d3148; flex-shrink: 0; }
 .chart-ticker-name { font-size: 0.9rem; font-weight: 800; color: #7dd3fc; }
