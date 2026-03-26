@@ -10,14 +10,14 @@
       "type": "volume_range"
     },
     {
-      "enabled": true,
+      "enabled": false,
       "id": "market_cap",
       "label": "시가총액 최소 (USD)",
       "min_usd": 22000000,
       "type": "market_cap_min"
     },
     {
-      "enabled": true,
+      "enabled": false,
       "id": "ma_align_1m_1",
       "interval": "1m",
       "label": "1분 이평배열 (MA5 >= MA60 >= MA112)",
@@ -29,7 +29,7 @@
       "type": "ma_alignment"
     },
     {
-      "enabled": true,
+      "enabled": false,
       "id": "ma_align_1m_2",
       "interval": "1m",
       "label": "1분 이평배열 (MA5 >= MA112 >= MA224)",
@@ -41,7 +41,7 @@
       "type": "ma_alignment"
     },
     {
-      "enabled": true,
+      "enabled": false,
       "id": "ma_align_5m_1",
       "interval": "5m",
       "label": "5분 이평배열 (MA5 >= MA20 >= MA60)",
@@ -53,7 +53,7 @@
       "type": "ma_alignment"
     },
     {
-      "enabled": true,
+      "enabled": false,
       "id": "ma_align_5m_2",
       "interval": "5m",
       "label": "5분 이평배열 (MA60 >= MA100 >= MA200)",
@@ -65,7 +65,7 @@
       "type": "ma_alignment"
     },
     {
-      "enabled": true,
+      "enabled": false,
       "fast": 5,
       "id": "ma_gap_5m_224",
       "interval": "5m",
@@ -75,7 +75,7 @@
       "type": "ma_gap"
     },
     {
-      "enabled": true,
+      "enabled": false,
       "id": "ma_align_15m_1",
       "interval": "15m",
       "label": "15분 이평배열 (MA5 >= MA20 >= MA60)",
@@ -87,7 +87,7 @@
       "type": "ma_alignment"
     },
     {
-      "enabled": true,
+      "enabled": false,
       "id": "ma_align_15m_2",
       "interval": "15m",
       "label": "15분 이평배열 (MA20 >= MA60 >= MA200)",
@@ -99,7 +99,7 @@
       "type": "ma_alignment"
     },
     {
-      "enabled": true,
+      "enabled": false,
       "fast": 5,
       "id": "ma_compare_1d",
       "interval": "1d",
@@ -108,7 +108,7 @@
       "type": "ma_compare"
     },
     {
-      "enabled": true,
+      "enabled": false,
       "id": "envelope_breakout_5m",
       "interval": "5m",
       "label": "5분 엔벨로프 상향돌파 (12, 3.0%)",
@@ -117,7 +117,7 @@
       "type": "envelope_breakout"
     },
     {
-      "enabled": true,
+      "enabled": false,
       "id": "envelope_breakout_1m",
       "interval": "1m",
       "label": "1분 엔벨로프 상향돌파 (12, 2.0%)",

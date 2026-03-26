@@ -35,7 +35,7 @@ PERIOD_MAP = {
 
 # API 호출 간격 제어 (마지막 호출 시간)
 _last_call_time = 0
-_MIN_CALL_INTERVAL = 1.5  # 초 (Yahoo Rate Limit 방지)
+_MIN_CALL_INTERVAL = 0.3
 _MAX_RETRIES = 3
 _BACKOFF_BASE = 10  # 초 (Rate Limit 시 대기 기본값)
 

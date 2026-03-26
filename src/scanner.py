@@ -35,10 +35,10 @@ from src.ticker_provider import get_us_tickers
 from src.fetcher import _cache, _lock, CACHE_TTL, PERIOD_MAP
 from src.evaluator import evaluate
 
-DAILY_BATCH = 100
-INTRA_BATCH = 50
-MIN_CALL_INTERVAL = 1.0
-ROUND_INTERVAL = 60  # 라운드 간 대기(초)
+DAILY_BATCH = 500
+INTRA_BATCH = 200
+MIN_CALL_INTERVAL = 0.2
+ROUND_INTERVAL = 60
 
 
 def _put(q: Queue, msg: dict):

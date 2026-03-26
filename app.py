@@ -213,7 +213,7 @@ def _drain_queue_to_state(q, round_num):
 
 
 def _background_scanner():
-    """서버 시작과 동시에 logic1으로 무한 모니터링"""
+    """서버 시작과 동시에 선택된 로직으로 무한 모니터링"""
     from queue import Queue
     from src.scanner import (
         ROUND_INTERVAL, _batch_daily_volume_filter,
@@ -262,7 +262,16 @@ def _background_scanner():
         )
         min_vol = int(vol_cond["min"]) if vol_cond else 300_000
 
-        candidates = _batch_daily_volume_filter(tickers, min_vol, q, _bg_stop)
+        import concurrent.futures
+        def _vol_filter_with_progress():
+            result = _batch_daily_volume_filter(tickers, min_vol, q, _bg_stop)
+            return result
+
+        vol_future = concurrent.futures.ThreadPoolExecutor(1).submit(_vol_filter_with_progress)
+        while not vol_future.done():
+            _drain_queue_to_state(q, round_num)
+            time.sleep(0.5)
+        candidates = vol_future.result()
         _drain_queue_to_state(q, round_num)
         if _bg_stop.is_set():
             break
@@ -272,7 +281,13 @@ def _background_scanner():
 
         intervals_needed = _get_intervals_needed(logic)
         if candidates and intervals_needed:
-            _preload_timeframes(candidates, intervals_needed, q, _bg_stop)
+            preload_future = concurrent.futures.ThreadPoolExecutor(1).submit(
+                _preload_timeframes, candidates, intervals_needed, q, _bg_stop
+            )
+            while not preload_future.done():
+                _drain_queue_to_state(q, round_num)
+                time.sleep(0.5)
+            preload_future.result()
             _drain_queue_to_state(q, round_num)
         if _bg_stop.is_set():
             break
