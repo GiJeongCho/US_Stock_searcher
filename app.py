@@ -7,9 +7,25 @@ import os
 import threading
 import time
 from datetime import datetime
+import numpy as np
 from flask import Flask, jsonify, render_template, request
+from flask.json.provider import DefaultJSONProvider
+
+
+class NumpyJSONProvider(DefaultJSONProvider):
+    def default(self, o):
+        if isinstance(o, (np.bool_, np.integer)):
+            return int(o)
+        if isinstance(o, np.floating):
+            return float(o)
+        if isinstance(o, np.ndarray):
+            return o.tolist()
+        return super().default(o)
+
 
 app = Flask(__name__)
+app.json_provider_class = NumpyJSONProvider
+app.json = NumpyJSONProvider(app)
 
 CONFIG_DIR = os.path.join(os.path.dirname(__file__), "config")
 WATCHLIST_FILE = os.path.join(CONFIG_DIR, "watchlist.json")
@@ -27,6 +43,8 @@ _scan_state = {
     "active": {},
     # ticker -> {result, round, found_at(ISO), exited_at(ISO)}
     "history": {},
+    # 조건별 통과/탈락 통계 (라운드 완료 시 갱신)
+    "cond_stats": {},
 }
 
 
@@ -145,6 +163,7 @@ def get_results():
         "logic_id": st["logic_id"],
         "active": list(st["active"].values()),
         "history": list(st["history"].values()),
+        "cond_stats": st.get("cond_stats", {}),
     })
 
 
@@ -158,6 +177,7 @@ def switch_logic():
             _scan_state["logic_id"] = logic_id
             _scan_state["active"] = {}
             _scan_state["history"] = {}
+            _scan_state["cond_stats"] = {}
     return jsonify({"ok": True, "logic_id": logic_id})
 
 
@@ -261,11 +281,22 @@ def _background_scanner():
                       status_msg=f"R#{round_num} {len(candidates):,}개 조건 평가 중...")
 
         matches = []
+        cond_stats: dict[str, dict] = {}
         for idx, ticker in enumerate(candidates):
             if _bg_stop.is_set():
                 break
             try:
                 result = evaluate(ticker, logic)
+                for c in result["conditions"]:
+                    cid = c["id"]
+                    if cid not in cond_stats:
+                        cond_stats[cid] = {"label": c["label"], "pass": 0, "fail": 0, "skip": 0}
+                    if c["pass"] is True:
+                        cond_stats[cid]["pass"] += 1
+                    elif c["pass"] is False:
+                        cond_stats[cid]["fail"] += 1
+                    else:
+                        cond_stats[cid]["skip"] += 1
                 if result["all_pass"]:
                     matches.append(result)
             except Exception:
@@ -307,6 +338,13 @@ def _background_scanner():
                 }
                 _scan_state["history"].pop(tk, None)
 
+            vol_stats = {
+                "label": "거래량 필터 (1단계)",
+                "pass": len(candidates),
+                "fail": len(tickers) - len(candidates),
+                "skip": 0,
+            }
+            _scan_state["cond_stats"] = {"_volume_filter": vol_stats, **cond_stats}
             _scan_state["phase"] = -1
             _scan_state["progress_pct"] = 100
             _scan_state["status_msg"] = (
