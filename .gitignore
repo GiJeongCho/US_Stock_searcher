@@ -27,6 +27,7 @@ Thumbs.db
 # Runtime auto-generated
 config/us_tickers.json
 config/watchlist.json
+data/
 
 # Claude / Cursor
 .claude/

@@ -8,8 +8,12 @@ import threading
 import time
 from datetime import datetime
 import numpy as np
-from flask import Flask, jsonify, render_template, request
+import bcrypt
+from flask import Flask, jsonify, render_template, request, redirect, url_for
 from flask.json.provider import DefaultJSONProvider
+from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
+from sqlalchemy import create_engine, Column, Integer, String, Text
+from sqlalchemy.orm import declarative_base, sessionmaker
 
 
 class NumpyJSONProvider(DefaultJSONProvider):
@@ -24,11 +28,62 @@ class NumpyJSONProvider(DefaultJSONProvider):
 
 
 app = Flask(__name__)
+app.secret_key = os.environ.get("SECRET_KEY", "us-stock-screener-secret-key-change-me")
 app.json_provider_class = NumpyJSONProvider
 app.json = NumpyJSONProvider(app)
 
 CONFIG_DIR = os.path.join(os.path.dirname(__file__), "config")
-WATCHLIST_FILE = os.path.join(CONFIG_DIR, "watchlist.json")
+DB_PATH = os.path.join(os.path.dirname(__file__), "data", "users.db")
+
+os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
+
+# ── DB 설정 ──────────────────────────────────────────────────
+Base = declarative_base()
+
+
+class User(Base, UserMixin):
+    __tablename__ = "users"
+    id = Column(Integer, primary_key=True)
+    username = Column(String(50), unique=True, nullable=False)
+    password_hash = Column(String(128), nullable=False)
+    watchlist_json = Column(Text, default="[]")
+
+    def set_password(self, pw: str):
+        self.password_hash = bcrypt.hashpw(pw.encode(), bcrypt.gensalt()).decode()
+
+    def check_password(self, pw: str) -> bool:
+        return bcrypt.checkpw(pw.encode(), self.password_hash.encode())
+
+    def get_watchlist(self) -> list:
+        return json.loads(self.watchlist_json or "[]")
+
+    def set_watchlist(self, tickers: list):
+        self.watchlist_json = json.dumps(tickers)
+
+
+engine = create_engine(f"sqlite:///{DB_PATH}", echo=False)
+Base.metadata.create_all(engine)
+Session = sessionmaker(bind=engine)
+
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = "login_page"
+
+
+@login_manager.user_loader
+def load_user(user_id):
+    s = Session()
+    try:
+        return s.get(User, int(user_id))
+    finally:
+        s.close()
+
+
+@login_manager.unauthorized_handler
+def unauthorized():
+    if request.path.startswith("/api/"):
+        return jsonify({"error": "login_required"}), 401
+    return redirect(url_for("login_page"))
 
 # ── 공유 스캔 상태 (백그라운드 스캐너 ↔ API) ──────────────────
 _state_lock = threading.Lock()
@@ -72,21 +127,75 @@ def save_logic(logic_id: str, data: dict):
         json.dump(data, f, ensure_ascii=False, indent=2)
 
 
-def load_watchlist() -> list:
-    if not os.path.exists(WATCHLIST_FILE):
-        return []
-    with open(WATCHLIST_FILE) as f:
-        return json.load(f)
+# ── 인증 ──────────────────────────────────────────────────────
+
+@app.route("/login")
+def login_page():
+    if current_user.is_authenticated:
+        return redirect(url_for("index"))
+    return render_template("login.html")
 
 
-def save_watchlist(tickers: list):
-    with open(WATCHLIST_FILE, "w") as f:
-        json.dump(tickers, f)
+@app.route("/api/register", methods=["POST"])
+def register():
+    data = request.get_json() or {}
+    username = data.get("username", "").strip()
+    password = data.get("password", "")
+    if not username or not password:
+        return jsonify({"error": "아이디와 비밀번호를 입력해주세요"}), 400
+    if len(username) < 2 or len(username) > 20:
+        return jsonify({"error": "아이디는 2~20자"}), 400
+    if len(password) < 4:
+        return jsonify({"error": "비밀번호는 4자 이상"}), 400
+
+    s = Session()
+    try:
+        if s.query(User).filter_by(username=username).first():
+            return jsonify({"error": "이미 존재하는 아이디입니다"}), 409
+        user = User(username=username)
+        user.set_password(password)
+        s.add(user)
+        s.commit()
+        login_user(user, remember=True)
+        return jsonify({"ok": True, "username": username})
+    finally:
+        s.close()
+
+
+@app.route("/api/login", methods=["POST"])
+def login():
+    data = request.get_json() or {}
+    username = data.get("username", "").strip()
+    password = data.get("password", "")
+
+    s = Session()
+    try:
+        user = s.query(User).filter_by(username=username).first()
+        if not user or not user.check_password(password):
+            return jsonify({"error": "아이디 또는 비밀번호가 틀렸습니다"}), 401
+        login_user(user, remember=True)
+        return jsonify({"ok": True, "username": username})
+    finally:
+        s.close()
+
+
+@app.route("/api/logout", methods=["POST"])
+def logout():
+    logout_user()
+    return jsonify({"ok": True})
+
+
+@app.route("/api/me")
+def me():
+    if current_user.is_authenticated:
+        return jsonify({"logged_in": True, "username": current_user.username})
+    return jsonify({"logged_in": False})
 
 
 # ── 페이지 ──────────────────────────────────────────────────
 
 @app.route("/")
+@login_required
 def index():
     return render_template("index.html")
 
@@ -111,27 +220,47 @@ def update_logic(logic_id):
 # ── 와치리스트 ───────────────────────────────────────────────
 
 @app.route("/api/watchlist", methods=["GET"])
+@login_required
 def get_watchlist():
-    return jsonify(load_watchlist())
+    s = Session()
+    try:
+        user = s.get(User, current_user.id)
+        return jsonify(user.get_watchlist())
+    finally:
+        s.close()
 
 
 @app.route("/api/watchlist", methods=["POST"])
+@login_required
 def add_watchlist():
     ticker = (request.get_json() or {}).get("ticker", "").upper().strip()
     if not ticker:
         return jsonify({"error": "ticker 필요"}), 400
-    wl = load_watchlist()
-    if ticker not in wl:
-        wl.append(ticker)
-        save_watchlist(wl)
-    return jsonify({"ok": True, "watchlist": wl})
+    s = Session()
+    try:
+        user = s.get(User, current_user.id)
+        wl = user.get_watchlist()
+        if ticker not in wl:
+            wl.append(ticker)
+            user.set_watchlist(wl)
+            s.commit()
+        return jsonify({"ok": True, "watchlist": wl})
+    finally:
+        s.close()
 
 
 @app.route("/api/watchlist/<ticker>", methods=["DELETE"])
+@login_required
 def del_watchlist(ticker):
-    wl = [t for t in load_watchlist() if t != ticker.upper()]
-    save_watchlist(wl)
-    return jsonify({"ok": True, "watchlist": wl})
+    s = Session()
+    try:
+        user = s.get(User, current_user.id)
+        wl = [t for t in user.get_watchlist() if t != ticker.upper()]
+        user.set_watchlist(wl)
+        s.commit()
+        return jsonify({"ok": True, "watchlist": wl})
+    finally:
+        s.close()
 
 
 # ── 종목 유니버스 정보 ────────────────────────────────────────

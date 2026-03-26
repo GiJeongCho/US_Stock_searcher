@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>US Stock Screener - 로그인</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Segoe UI', sans-serif; background: #0f1117; color: #e2e8f0; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+
+.auth-card {
+  background: #13161f; border: 1px solid #2d3148; border-radius: 12px;
+  padding: 36px 32px; width: 360px;
+}
+.auth-title { font-size: 1.3rem; font-weight: 800; color: #7dd3fc; text-align: center; margin-bottom: 6px; }
+.auth-sub { font-size: 0.75rem; color: #6b7280; text-align: center; margin-bottom: 24px; }
+
+.tab-row { display: flex; margin-bottom: 20px; border-bottom: 1px solid #2d3148; }
+.tab-btn { flex: 1; padding: 10px; text-align: center; cursor: pointer; font-size: 0.85rem; color: #6b7280;
+           border: none; background: none; border-bottom: 2px solid transparent; transition: .15s; }
+.tab-btn.active { color: #7dd3fc; border-bottom-color: #7dd3fc; }
+
+.field { margin-bottom: 14px; }
+.field label { display: block; font-size: 0.72rem; color: #9ca3af; margin-bottom: 5px; }
+.field input { width: 100%; background: #1e2130; border: 1px solid #374151; border-radius: 7px;
+               padding: 10px 12px; color: #e2e8f0; font-size: 0.88rem; outline: none; }
+.field input:focus { border-color: #7dd3fc; }
+
+.submit-btn { width: 100%; padding: 11px; border: none; border-radius: 7px; font-size: 0.88rem;
+              font-weight: 700; cursor: pointer; margin-top: 6px; transition: .15s;
+              background: #1d4ed8; color: #fff; }
+.submit-btn:hover { background: #2563eb; }
+
+.error-msg { background: #7f1d1d; color: #fca5a5; font-size: 0.75rem; padding: 8px 12px;
+             border-radius: 6px; margin-bottom: 12px; display: none; }
+.error-msg.show { display: block; }
+</style>
+</head>
+<body>
+
+<div class="auth-card">
+  <div class="auth-title">US Stock Screener</div>
+  <div class="auth-sub">로그인하여 나만의 즐겨찾기를 관리하세요</div>
+
+  <div class="tab-row">
+    <button class="tab-btn active" id="tabLogin" onclick="switchAuthTab('login')">로그인</button>
+    <button class="tab-btn" id="tabRegister" onclick="switchAuthTab('register')">회원가입</button>
+  </div>
+
+  <div class="error-msg" id="errorMsg"></div>
+
+  <div id="loginForm">
+    <div class="field">
+      <label>아이디</label>
+      <input type="text" id="loginUser" autocomplete="username" onkeydown="if(event.key==='Enter') doLogin()">
+    </div>
+    <div class="field">
+      <label>비밀번호</label>
+      <input type="password" id="loginPass" autocomplete="current-password" onkeydown="if(event.key==='Enter') doLogin()">
+    </div>
+    <button class="submit-btn" onclick="doLogin()">로그인</button>
+  </div>
+
+  <div id="registerForm" style="display:none">
+    <div class="field">
+      <label>아이디 (2~20자)</label>
+      <input type="text" id="regUser" autocomplete="username" onkeydown="if(event.key==='Enter') doRegister()">
+    </div>
+    <div class="field">
+      <label>비밀번호 (4자 이상)</label>
+      <input type="password" id="regPass" autocomplete="new-password" onkeydown="if(event.key==='Enter') doRegister()">
+    </div>
+    <div class="field">
+      <label>비밀번호 확인</label>
+      <input type="password" id="regPass2" autocomplete="new-password" onkeydown="if(event.key==='Enter') doRegister()">
+    </div>
+    <button class="submit-btn" onclick="doRegister()">가입하기</button>
+  </div>
+</div>
+
+<script>
+function switchAuthTab(tab) {
+  document.getElementById('tabLogin').classList.toggle('active', tab === 'login');
+  document.getElementById('tabRegister').classList.toggle('active', tab === 'register');
+  document.getElementById('loginForm').style.display = tab === 'login' ? '' : 'none';
+  document.getElementById('registerForm').style.display = tab === 'register' ? '' : 'none';
+  hideError();
+}
+
+function showError(msg) {
+  const el = document.getElementById('errorMsg');
+  el.textContent = msg;
+  el.classList.add('show');
+}
+function hideError() { document.getElementById('errorMsg').classList.remove('show'); }
+
+async function doLogin() {
+  hideError();
+  const username = document.getElementById('loginUser').value.trim();
+  const password = document.getElementById('loginPass').value;
+  if (!username || !password) { showError('아이디와 비밀번호를 입력해주세요'); return; }
+
+  const res = await fetch('/api/login', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({username, password})
+  });
+  const data = await res.json();
+  if (data.ok) { window.location.href = '/'; }
+  else { showError(data.error || '로그인 실패'); }
+}
+
+async function doRegister() {
+  hideError();
+  const username = document.getElementById('regUser').value.trim();
+  const password = document.getElementById('regPass').value;
+  const password2 = document.getElementById('regPass2').value;
+  if (!username || !password) { showError('아이디와 비밀번호를 입력해주세요'); return; }
+  if (password !== password2) { showError('비밀번호가 일치하지 않습니다'); return; }
+
+  const res = await fetch('/api/register', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({username, password})
+  });
+  const data = await res.json();
+  if (data.ok) { window.location.href = '/'; }
+  else { showError(data.error || '가입 실패'); }
+}
+</script>
+</body>
+</html>

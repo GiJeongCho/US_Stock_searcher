@@ -162,6 +162,8 @@ header h1 { font-size: 1rem; font-weight: 700; color: #7dd3fc; }
     <div class="live-dot" id="liveDot" title="백그라운드 모니터링 중"></div>
     <span class="universe-info" id="universeInfo">종목 DB: 로딩 중...</span>
     <button class="btn btn-gray btn-sm" onclick="refreshUniverse()">갱신</button>
+    <span style="color:#6b7280;font-size:0.72rem" id="userLabel"></span>
+    <button class="btn btn-gray btn-sm" onclick="doLogout()">로그아웃</button>
   </div>
 </header>
 
@@ -258,10 +260,21 @@ let pollTimer = null;
 
 // ── 초기화 ──────────────────────────────────────────────────
 async function init() {
-  await Promise.all([loadLogic('logic1'), loadLogic('logic2'), loadWatchlist()]);
+  await Promise.all([loadLogic('logic1'), loadLogic('logic2'), loadWatchlist(), loadMe()]);
   renderLogicEditor();
   loadUniverseInfo();
   startPolling();
+}
+
+async function loadMe() {
+  const res = await fetch('/api/me');
+  const data = await res.json();
+  document.getElementById('userLabel').textContent = data.logged_in ? data.username : '';
+}
+
+async function doLogout() {
+  await fetch('/api/logout', {method: 'POST'});
+  window.location.href = '/login';
 }
 
 async function loadUniverseInfo() {

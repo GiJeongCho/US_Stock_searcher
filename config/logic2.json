@@ -1,23 +1,23 @@
 {
   "conditions": [
     {
-      "enabled": true,
+      "enabled": false,
       "id": "volume_daily",
       "interval": "1d",
       "label": "일 거래량 필터",
       "max": 999999999,
-      "min": 300000,
+      "min": 140000,
       "type": "volume_range"
     },
     {
-      "enabled": false,
+      "enabled": true,
       "id": "market_cap",
       "label": "시가총액 최소 (USD)",
-      "min_usd": 22000000,
+      "min_usd": 11000000,
       "type": "market_cap_min"
     },
     {
-      "enabled": false,
+      "enabled": true,
       "id": "ma_align_1m_1",
       "interval": "1m",
       "label": "1분 이평배열 (MA5 >= MA60 >= MA112)",
@@ -29,7 +29,7 @@
       "type": "ma_alignment"
     },
     {
-      "enabled": false,
+      "enabled": true,
       "id": "ma_align_1m_2",
       "interval": "1m",
       "label": "1분 이평배열 (MA5 >= MA112 >= MA224)",
