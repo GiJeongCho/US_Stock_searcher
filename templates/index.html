@@ -69,7 +69,7 @@ header h1 { font-size: 1rem; font-weight: 700; color: #7dd3fc; }
 /* ─── 오른쪽 패널 ─── */
 .right { display: flex; flex-direction: column; overflow: hidden; }
 
-/* 차트 영역 (스캔 결과 위, 화면 45% 사용) */
+/* 차트 (상단 고정) */
 .chart-wrap { flex: 0 0 45%; max-height: 45vh; border-bottom: 1px solid #2d3148; display: flex; flex-direction: column; }
 .chart-wrap.hidden { display: none; }
 .chart-header { display: flex; align-items: center; justify-content: space-between; padding: 5px 14px; background: #1a1d27; border-bottom: 1px solid #2d3148; flex-shrink: 0; }
@@ -80,8 +80,11 @@ header h1 { font-size: 1rem; font-weight: 700; color: #7dd3fc; }
 .chart-search-input { background: #1e2130; border: 1px solid #374151; border-radius: 5px; padding: 4px 8px; color: #e2e8f0; font-size: 0.78rem; outline: none; width: 130px; }
 .chart-search-input:focus { border-color: #7dd3fc; }
 
+/* 하단 스크롤 영역 (필터 통계 + 스캔 상태 + 결과가 한 스크롤) */
+.right-scroll { flex: 1; overflow-y: auto; min-height: 0; }
+
 /* 스캔 상태 */
-.scan-status { background: #13161f; border-bottom: 1px solid #2d3148; padding: 10px 20px; flex-shrink: 0; }
+.scan-status { background: #13161f; border-bottom: 1px solid #2d3148; padding: 10px 20px; }
 .status-row { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
 .status-label { font-size: 0.78rem; font-weight: 600; }
 .status-msg { font-size: 0.73rem; color: #9ca3af; flex: 1; }
@@ -97,7 +100,7 @@ header h1 { font-size: 1rem; font-weight: 700; color: #7dd3fc; }
 .phase-dot.done { background: #3b82f6; }
 
 /* 조건별 통계 */
-.cond-stats { background: #111318; border-bottom: 1px solid #2d3148; padding: 8px 16px; flex-shrink: 0; }
+.cond-stats { background: #111318; border-bottom: 1px solid #2d3148; padding: 8px 16px; }
 .cond-stats.hidden { display: none; }
 .cond-stats-toggle { display: flex; align-items: center; justify-content: space-between; cursor: pointer; }
 .cond-stats-toggle span { font-size: 0.7rem; color: #6b7280; }
@@ -110,11 +113,11 @@ header h1 { font-size: 1rem; font-weight: 700; color: #7dd3fc; }
 .stat-bar-fail { background: #7f1d1d; height: 100%; transition: width .3s; }
 .stat-nums { font-size: 0.65rem; color: #6b7280; width: 100px; text-align: right; flex-shrink: 0; }
 
-.results-header { padding: 10px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #1e2130; flex-shrink: 0; }
+.results-header { padding: 10px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #1e2130; }
 .results-title { font-size: 0.8rem; font-weight: 600; }
 .results-meta { font-size: 0.7rem; color: #6b7280; }
 
-.results-body { flex: 1; overflow-y: auto; display: flex; flex-direction: column; min-height: 0; }
+.results-body { display: flex; flex-direction: column; }
 .results-section { padding: 0 14px 10px; }
 .results-section:first-child { padding-top: 14px; }
 .section-divider { display: flex; align-items: center; gap: 10px; padding: 6px 14px; }
@@ -213,40 +216,43 @@ header h1 { font-size: 1rem; font-weight: 700; color: #7dd3fc; }
       <div class="chart-container" id="chartContainer"></div>
     </div>
 
-    <div class="scan-status" id="scanStatus">
-      <div class="status-row">
-        <span class="status-label" id="statusLabel">시작 중...</span>
-        <span class="status-msg" id="statusMsg">백그라운드 모니터링 자동 실행 중</span>
-        <span class="match-badge" id="matchBadge">0개</span>
+    <!-- 하단: 필터 통계 + 스캔 상태 + 결과가 한 스크롤 -->
+    <div class="right-scroll">
+      <div class="scan-status" id="scanStatus">
+        <div class="status-row">
+          <span class="status-label" id="statusLabel">시작 중...</span>
+          <span class="status-msg" id="statusMsg">백그라운드 모니터링 자동 실행 중</span>
+          <span class="match-badge" id="matchBadge">0개</span>
+        </div>
+        <div class="progress-bar-wrap">
+          <div class="progress-bar" id="progressBar"></div>
+        </div>
+        <div class="phase-labels">
+          <div class="phase-item"><div class="phase-dot" id="phase1dot"></div> 거래량 필터</div>
+          <div class="phase-item"><div class="phase-dot" id="phase2dot"></div> 데이터 로드</div>
+          <div class="phase-item"><div class="phase-dot" id="phase3dot"></div> 조건 평가</div>
+        </div>
       </div>
-      <div class="progress-bar-wrap">
-        <div class="progress-bar" id="progressBar"></div>
-      </div>
-      <div class="phase-labels">
-        <div class="phase-item"><div class="phase-dot" id="phase1dot"></div> 거래량 필터</div>
-        <div class="phase-item"><div class="phase-dot" id="phase2dot"></div> 데이터 로드</div>
-        <div class="phase-item"><div class="phase-dot" id="phase3dot"></div> 조건 평가</div>
-      </div>
-    </div>
 
-    <div class="cond-stats hidden" id="condStats">
-      <div class="cond-stats-toggle" onclick="document.getElementById('condStatsBody').classList.toggle('hidden')">
-        <span>▸ 조건별 필터 통계</span>
+      <div class="cond-stats hidden" id="condStats">
+        <div class="cond-stats-toggle" onclick="document.getElementById('condStatsBody').classList.toggle('hidden')">
+          <span>▸ 조건별 필터 통계</span>
+        </div>
+        <div class="cond-stats-body hidden" id="condStatsBody"></div>
       </div>
-      <div class="cond-stats-body hidden" id="condStatsBody"></div>
-    </div>
 
-    <div class="results-header">
-      <span class="results-title">스캔 결과</span>
-      <span class="results-meta" id="resultsMeta">-</span>
-    </div>
+      <div class="results-header">
+        <span class="results-title">스캔 결과</span>
+        <span class="results-meta" id="resultsMeta">-</span>
+      </div>
 
-    <div class="results-body" id="resultsBody">
-      <div class="empty-state" id="emptyState">
-        <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3">
-          <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
-        </svg>
-        <p>백그라운드에서 자동 스캔 중... 조건 충족 종목이 나타나면 여기에 표시됩니다</p>
+      <div class="results-body" id="resultsBody">
+        <div class="empty-state" id="emptyState">
+          <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3">
+            <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+          </svg>
+          <p>백그라운드에서 자동 스캔 중... 조건 충족 종목이 나타나면 여기에 표시됩니다</p>
+        </div>
       </div>
     </div>
   </div>
