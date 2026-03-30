@@ -113,3 +113,22 @@ def check_float_ratio(info: dict, min_pct: float) -> bool:
         return False
     ratio = float_shares / shares_out * 100
     return ratio >= min_pct
+
+
+def check_bb_upper_only(df: pd.DataFrame, period: int = 40, std: float = 2.0) -> bool:
+    """현재가가 볼린저밴드 상한선(upper) 이상인지 확인"""
+    close = df["Close"]
+    if len(close) < period:
+        return False
+    upper, _, _ = bollinger_bands(close, period, std)
+    return close.iloc[-1] >= upper.iloc[-1]
+
+
+def check_price_ma_offset(df: pd.DataFrame, period: int = 50, offset_pct: float = 2.0) -> bool:
+    """현재가가 MA + offset% 이상인지 확인 (이동평균선 위 일정% 이상)"""
+    close = df["Close"]
+    if len(close) < period:
+        return False
+    ma = sma(close, period).iloc[-1]
+    threshold = ma * (1 + offset_pct / 100)
+    return close.iloc[-1] >= threshold

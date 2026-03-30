@@ -82,6 +82,20 @@ def _eval_condition(cond: dict, ticker: str, df_cache: dict, info: dict) -> dict
         elif ctype == "float_ratio_min":
             result = ind.check_float_ratio(info, cond["min_pct"])
 
+        elif ctype == "bb_upper_only":
+            df = get_df(interval)
+            if df is None:
+                reason = "데이터 없음"
+            else:
+                result = ind.check_bb_upper_only(df, cond["period"], cond["std"])
+
+        elif ctype == "price_ma_offset":
+            df = get_df(interval)
+            if df is None:
+                reason = "데이터 없음"
+            else:
+                result = ind.check_price_ma_offset(df, cond["period"], cond.get("offset_pct", 0))
+
         else:
             reason = f"알 수 없는 조건 타입: {ctype}"
 
