@@ -27,7 +27,7 @@ sudo systemctl start stock-screener
 sudo systemctl status stock-screener
 ```
 
-접속: `http://<서버IP>:5001`
+접속: `http://<서버IP>:4999`
 
 ---
 
