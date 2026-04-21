@@ -534,9 +534,9 @@ def _ensure_scanner():
 if __name__ == "__main__":
     import sys
     if "--reload" in sys.argv:
-        app.run(debug=True, use_reloader=True, host="0.0.0.0", port=4999, threaded=True)
+        app.run(debug=True, use_reloader=True, host="0.0.0.0", port=5065, threaded=True)
     else:
         from waitress import serve
         start_background_scanner()
-        print("🚀 Waitress 서버 시작: http://0.0.0.0:4999")
-        serve(app, host="0.0.0.0", port=4999, threads=8)
+        print("🚀 Waitress 서버 시작: http://0.0.0.0:5065")
+        serve(app, host="0.0.0.0", port=5065, threads=8)
